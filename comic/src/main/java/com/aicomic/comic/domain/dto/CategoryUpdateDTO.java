@@ -1,0 +1,33 @@
+package com.aicomic.comic.domain.dto;
+
+import com.aicomic.comic.constants.ComicErrorInfo;
+import io.swagger.annotations.ApiModel;
+import io.swagger.annotations.ApiModelProperty;
+import lombok.Data;
+
+import javax.validation.constraints.Max;
+import javax.validation.constraints.Min;
+import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Size;
+
+/**
+ * 漫剧分类更新类，只更新名称和排序
+ * @since 2022/7/10 15:32
+ * @version 1.0.0
+ **/
+@Data
+@ApiModel(description = "分类信息更新模型")
+public class CategoryUpdateDTO {
+    @ApiModelProperty("分类id")
+    @NotNull(message = ComicErrorInfo.Msg.CATEGORY_ID_NOT_NULL)
+    private Long id;
+    @ApiModelProperty("名称")
+    @NotNull(message = ComicErrorInfo.Msg.CATEGORY_UPDATE_NAME_NOT_NULL)
+    @Size(max = 15, message = ComicErrorInfo.Msg.CATEGORY_UPDATE_NAME_SIZE)
+    private String name;
+    @ApiModelProperty("分类序号")
+    @Max(value = 99, message = ComicErrorInfo.Msg.CATEGORY_UPDATE_INDEX_MAX_MIN)
+    @Min(value = 1, message = ComicErrorInfo.Msg.CATEGORY_UPDATE_INDEX_MAX_MIN)
+    @NotNull(message = ComicErrorInfo.Msg.CATEGORY_UPDATE_INDEX_NOT_NULL)
+    private Integer index;
+}

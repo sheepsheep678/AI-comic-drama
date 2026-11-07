@@ -3,13 +3,13 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
-        <artifactId>tjxt</artifactId>
-        <groupId>com.tianji</groupId>
+        <artifactId>aicomic</artifactId>
+        <groupId>com.aicomic</groupId>
         <version>1.0.0</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>tj-search</artifactId>
+    <artifactId>ac-search</artifactId>
 
     <properties>
         <maven.compiler.source>11</maven.compiler.source>
@@ -18,14 +18,14 @@
     <dependencies>
         <!--api-->
         <dependency>
-            <groupId>com.tianji</groupId>
-            <artifactId>tj-api</artifactId>
+            <groupId>com.aicomic</groupId>
+            <artifactId>ac-api</artifactId>
             <version>1.0.0</version>
         </dependency>
         <!--auth-->
         <dependency>
-            <groupId>com.tianji</groupId>
-            <artifactId>tj-auth-resource-sdk</artifactId>
+            <groupId>com.aicomic</groupId>
+            <artifactId>ac-auth-resource-sdk</artifactId>
             <version>1.0.0</version>
         </dependency>
         <!--web-->
@@ -97,7 +97,7 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <mainClass>com.tianji.search.SearchApplication</mainClass>
+                    <mainClass>com.aicomic.search.SearchApplication</mainClass>
                 </configuration>
             </plugin>
         </plugins>

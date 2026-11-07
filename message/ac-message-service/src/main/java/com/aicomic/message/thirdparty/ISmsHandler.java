@@ -1,0 +1,17 @@
+package com.aicomic.message.thirdparty;
+
+import com.aicomic.api.dto.sms.SmsInfoDTO;
+import com.aicomic.message.domain.po.MessageTemplate;
+
+/**
+ * 第三方接口对接平台
+ */
+public interface ISmsHandler {
+
+    /**
+     * 发送短信
+     */
+    void send(SmsInfoDTO platformSmsInfoDTO, MessageTemplate template);
+
+
+}

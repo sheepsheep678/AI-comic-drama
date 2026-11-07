@@ -42,10 +42,10 @@ spring:
           uri: lb://user-service
           predicates:
             - Path=/us/**
-        - id: cs
-          uri: lb://course-service
+        - id: mc
+          uri: lb://comic-service
           predicates:
-            - Path=/cs/**
+            - Path=/mc/**
         - id: os
           uri: lb://order-service
           predicates:
@@ -54,30 +54,26 @@ spring:
           uri: lb://search-service
           predicates:
             - Path=/ss/**
-        - id: ls
-          uri: lb://learning-service
+        - id: ws
+          uri: lb://watch-service
           predicates:
-            - Path=/ls/**
+            - Path=/ws/**
         - id: ps
           uri: lb://pay-service
           predicates:
             - Path=/ps/**
-        - id: ts
-          uri: lb://trade-service
+        - id: qz
+          uri: lb://quiz-service
           predicates:
-            - Path=/ts/**
-        - id: es
-          uri: lb://exam-service
+            - Path=/qz/**
+        - id: cm
+          uri: lb://comment-service
           predicates:
-            - Path=/es/**
-        - id: rs
-          uri: lb://remark-service
+            - Path=/cm/**
+        - id: ul
+          uri: lb://unlock-service
           predicates:
-            - Path=/rs/**
-        - id: prs
-          uri: lb://promotion-service
-          predicates:
-            - Path=/prs/**
+            - Path=/ul/**
       default-filters:
         - StripPrefix=1
       globalcors: # 全局的跨域处理
@@ -98,4 +94,4 @@ spring:
 
 logging:
   level:
-    com.tianji: debug
+    com.aicomic: debug

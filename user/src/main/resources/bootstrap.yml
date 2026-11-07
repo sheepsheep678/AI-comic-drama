@@ -22,27 +22,27 @@ spring:
             refresh: false
           - data-id: shared-feign.yaml # 共享feign配置
             refresh: false
-tj:
+ac:
   swagger:
     enable: true
     enableResponseWrap: true
-    package-path: com.tianji.user.controller
-    title: 天机学堂 - 用户中心接口文档
-    description: 该服务用户管理、用户信息管理
-    contact-name: 传智教育·研究院
-    contact-url: http://www.itcast.cn/
-    contact-email: zhanghuyi@itcast.cn
+    package-path: com.aicomic.user.controller
+    title: AI漫剧 - 用户中心接口文档
+    description: 该服务负责用户、创作者与观众管理
+    contact-name: AI漫剧平台
+    contact-url: https://github.com/sheepsheep678/AI-comic-drama
+    contact-email: ""
     version: v1.0
   auth:
     resource:
       enable: true
       excludeLoginPaths:
-        - /students/register
-        - /users/detail/{isStaff}
+        - /viewers/register
+        - /users/detail/{isAdmin}
         - /users/list
         - GET:/users/{id}
         - /users/{id}/type
         - /users/ids
         - /users/me
   jdbc:
-    database: tj_user
+    database: aicomic_user
