@@ -67,6 +67,11 @@ public class InteractionQuestion implements Serializable {
     private Long latestAnswerId;
 
     /**
+     * 热度最高的一个回答id；null-未计算，0-已计算但无可见回答
+     */
+    private Long hotReplyId;
+
+    /**
      * 问题下的回答数量
      */
     private Integer answerTimes;

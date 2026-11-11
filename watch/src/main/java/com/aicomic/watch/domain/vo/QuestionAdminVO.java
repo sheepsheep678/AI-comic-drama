@@ -5,6 +5,7 @@ import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @ApiModel(description = "用户端互动问题信息")
@@ -38,6 +39,8 @@ public class QuestionAdminVO {
     private String sectionName;
     @ApiModelProperty("三级分类名称，中间使用/隔开")
     private String categoryName;
+    @ApiModelProperty("热度最高的回答列表")
+    private List<HotReplyVO> hotReplies;
 }
 
 

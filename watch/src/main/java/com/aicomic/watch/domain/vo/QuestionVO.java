@@ -5,6 +5,7 @@ import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @ApiModel(description = "用户端互动问题信息")
@@ -27,8 +28,6 @@ public class QuestionVO {
     private String userName;
     @ApiModelProperty("提问者头像")
     private String userIcon;
-    @ApiModelProperty("最新的回答信息")
-    private String latestReplyContent;
-    @ApiModelProperty("最新的回答者昵称")
-    private String latestReplyUser;
+    @ApiModelProperty("热度最高的回答列表")
+    private List<HotReplyVO> hotReplies;
 }

@@ -9,4 +9,16 @@ public interface RedisConstants {
      * 积分排行榜的Key的前缀：boards:202301
      */
     String POINTS_BOARD_KEY_PREFIX = "boards:";
+    /**
+     * 热度回答待重算的问题id集合
+     */
+    String HOT_REPLY_DIRTY_KEY = "watch:reply:hot:dirty";
+    /**
+     * 热度回答重算中的问题id集合
+     */
+    String HOT_REPLY_PROCESSING_KEY = "watch:reply:hot:processing";
+    /**
+     * 问题下回答热度排行榜的Key前缀：watch:reply:hot:rank:1
+     */
+    String HOT_REPLY_RANK_KEY_PREFIX = "watch:reply:hot:rank:";
 }

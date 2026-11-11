@@ -20,6 +20,7 @@ import com.aicomic.watch.domain.query.ReplyPageQuery;
 import com.aicomic.watch.domain.vo.ReplyVO;
 import com.aicomic.watch.enums.QuestionStatus;
 import com.aicomic.watch.mapper.InteractionReplyMapper;
+import com.aicomic.watch.service.IHotReplyService;
 import com.aicomic.watch.service.IInteractionQuestionService;
 import com.aicomic.watch.service.IInteractionReplyService;
 import lombok.RequiredArgsConstructor;
@@ -47,36 +48,42 @@ public class InteractionReplyServiceImpl extends ServiceImpl<InteractionReplyMap
     private final UserClient userClient;
     private final CommentClient commentClient;
     private final RabbitMqHelper mqHelper;
+    private final IHotReplyService hotReplyService;
 
     @Override
     @Transactional
     public void saveReply(ReplyDTO replyDTO) {
         // 1.获取登录用户
         Long userId = UserContext.getUser();
-        // 2.新增回答
+        // 2.新增回答；顶层回答统一使用 0，避免历史数据中 NULL 与 0 混用
+        Long answerId = replyDTO.getAnswerId() == null ? 0L : replyDTO.getAnswerId();
+        boolean isAnswer = answerId == 0L;
         InteractionReply reply = BeanUtils.toBean(replyDTO, InteractionReply.class);
         reply.setUserId(userId);
+        reply.setAnswerId(answerId);
         save(reply);
         // 3.累加评论数或者累加回答数
-        // 3.1.判断当前回复的类型是否是回答
-        boolean isAnswer = replyDTO.getAnswerId() == null;
         if (!isAnswer) {
-            // 3.2.是评论，则需要更新上级回答的评论数量
+            // 3.1.是评论，则需要更新上级回答的评论数量
             lambdaUpdate()
                     .setSql("reply_times = reply_times + 1")
-                    .eq(InteractionReply::getId, replyDTO.getAnswerId())
+                    .eq(InteractionReply::getId, answerId)
                     .update();
         }
-        // 3.3.尝试更新问题表中的状态、 最近一次回答、回答数量
+        // 3.2.尝试更新问题表中的状态、最近一次回答、回答数量
         questionService.lambdaUpdate()
-                .set(isAnswer, InteractionQuestion::getLatestAnswerId, reply.getAnswerId())
+                .set(isAnswer, InteractionQuestion::getLatestAnswerId, reply.getId())
                 .setSql(isAnswer, "answer_times = answer_times + 1")
-                .set(replyDTO.getIsViewer(), InteractionQuestion::getStatus, QuestionStatus.UN_CHECK.getValue())
+                .set(Boolean.TRUE.equals(replyDTO.getIsViewer()),
+                        InteractionQuestion::getStatus, QuestionStatus.UN_CHECK.getValue())
                 .eq(InteractionQuestion::getId, replyDTO.getQuestionId())
                 .update();
+        // 3.3.回答或子评论都会改变热度，立即失效并打脏标记，由定时任务重算
+        hotReplyService.invalidate(Collections.singleton(replyDTO.getQuestionId()));
+        hotReplyService.markDirty(Collections.singleton(replyDTO.getQuestionId()));
 
         // 4.尝试累加积分
-        if(replyDTO.getIsViewer()) {
+        if(Boolean.TRUE.equals(replyDTO.getIsViewer())) {
             // 观众才需要累加积分
             mqHelper.send(
                     MqConstants.Exchange.WATCH_EXCHANGE,
@@ -193,6 +200,9 @@ public class InteractionReplyServiceImpl extends ServiceImpl<InteractionReplyMap
                 .set(InteractionReply::getHidden, hidden)
                 .eq(InteractionReply::getAnswerId, id)
                 .update();
+        // 3.3.顶层回答的可见性变化会影响热度榜，立即失效并等待任务重算
+        hotReplyService.invalidate(Collections.singleton(old.getQuestionId()));
+        hotReplyService.markDirty(Collections.singleton(old.getQuestionId()));
     }
 
     @Override

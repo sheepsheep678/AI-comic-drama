@@ -2,4 +2,47 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicomic.watch.mapper.InteractionReplyMapper">
 
+    <!--
+        查询问题下参与热度排名的顶层回答候选。
+        每个问题按点赞量倒序最多取 limitPerQuestion 条，实际的复合热度排序在 Java 侧完成。
+        依赖 MySQL 8.0 的窗口函数。
+    -->
+    <select id="selectHotCandidates" resultType="com.aicomic.watch.domain.dto.HotReplyCandidate">
+        SELECT t.replyId,
+               t.questionId,
+               t.userId,
+               t.content,
+               t.anonymity,
+               t.likedTimes,
+               t.replyTimes,
+               t.createTime,
+               t.hidden
+        FROM (
+            SELECT r.id AS replyId,
+                   r.question_id AS questionId,
+                   r.user_id AS userId,
+                   r.content,
+                   r.anonymity,
+                   COALESCE(r.liked_times, 0) AS likedTimes,
+                   COALESCE(r.reply_times, 0) AS replyTimes,
+                   r.create_time AS createTime,
+                   r.hidden,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY r.question_id
+                       ORDER BY COALESCE(r.liked_times, 0) DESC,
+                                COALESCE(r.reply_times, 0) DESC,
+                                r.create_time DESC,
+                                r.id DESC
+                   ) AS rn
+            FROM interaction_reply r
+            WHERE r.question_id IN
+            <foreach collection="questionIds" item="questionId" open="(" separator="," close=")">
+                #{questionId}
+            </foreach>
+              AND (r.answer_id = 0 OR r.answer_id IS NULL)
+              AND (r.hidden = 0 OR r.hidden IS NULL)
+        ) t
+        WHERE t.rn &lt;= #{limitPerQuestion}
+        ORDER BY t.questionId, t.likedTimes DESC, t.replyTimes DESC, t.createTime DESC, t.replyId DESC
+    </select>
 </mapper>

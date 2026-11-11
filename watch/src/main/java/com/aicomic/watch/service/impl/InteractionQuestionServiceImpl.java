@@ -18,17 +18,20 @@ import com.aicomic.common.utils.BeanUtils;
 import com.aicomic.common.utils.CollUtils;
 import com.aicomic.common.utils.StringUtils;
 import com.aicomic.common.utils.UserContext;
+import com.aicomic.watch.constants.HotReplyConstants;
+import com.aicomic.watch.domain.dto.HotReplyCandidate;
 import com.aicomic.watch.domain.dto.QuestionFormDTO;
 import com.aicomic.watch.domain.po.InteractionQuestion;
 import com.aicomic.watch.domain.po.InteractionReply;
 import com.aicomic.watch.domain.query.QuestionAdminPageQuery;
 import com.aicomic.watch.domain.query.QuestionPageQuery;
+import com.aicomic.watch.domain.vo.HotReplyVO;
 import com.aicomic.watch.domain.vo.QuestionAdminVO;
 import com.aicomic.watch.domain.vo.QuestionVO;
 import com.aicomic.watch.mapper.InteractionQuestionMapper;
 import com.aicomic.watch.mapper.InteractionReplyMapper;
+import com.aicomic.watch.service.IHotReplyService;
 import com.aicomic.watch.service.IInteractionQuestionService;
-import com.aicomic.watch.service.IInteractionReplyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,6 +50,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class InteractionQuestionServiceImpl extends ServiceImpl<InteractionQuestionMapper, InteractionQuestion> implements IInteractionQuestionService {
 
+    private final IHotReplyService hotReplyService;
     private final InteractionReplyMapper replyMapper;
     private final UserClient userClient;
     private final ComicClient courseClient;
@@ -61,6 +65,8 @@ public class InteractionQuestionServiceImpl extends ServiceImpl<InteractionQuest
         // 2.数据封装
         InteractionQuestion question = BeanUtils.copyBean(questionDTO, InteractionQuestion.class);
         question.setUserId(userId);
+        // 新问题还没有回答，直接标记为已计算但无结果
+        question.setHotReplyId(0L);
         // 3.写入数据库
         save(question);
     }
@@ -85,63 +91,44 @@ public class InteractionQuestionServiceImpl extends ServiceImpl<InteractionQuest
         if (CollUtils.isEmpty(records)) {
             return PageDTO.empty(page);
         }
-        // 3.根据id查询提问者和最近一次回答的信息
+        // 3.批量加载热度回答
+        Map<Long, List<HotReplyCandidate>> hotReplyMap =
+                hotReplyService.loadHotReplies(records, HotReplyConstants.API_TOP_N);
+
+        // 4.批量查询用户信息（提问者 + 非匿名回答者）
         Set<Long> userIds = new HashSet<>();
-        Set<Long> answerIds = new HashSet<>();
-        // 3.1.得到问题当中的提问者id和最近一次回答的id
         for (InteractionQuestion q : records) {
-            if(!q.getAnonymity()) { // 只查询非匿名的问题
+            if (!Boolean.TRUE.equals(q.getAnonymity())) {
                 userIds.add(q.getUserId());
             }
-            answerIds.add(q.getLatestAnswerId());
-        }
-        // 3.2.根据id查询最近一次回答
-        answerIds.remove(null);
-        Map<Long, InteractionReply> replyMap = new HashMap<>(answerIds.size());
-        if(CollUtils.isNotEmpty(answerIds)) {
-            List<InteractionReply> replies = replyMapper.selectBatchIds(answerIds);
-            for (InteractionReply reply : replies) {
-                replyMap.put(reply.getId(), reply);
-                if(!reply.getAnonymity()){
+            for (HotReplyCandidate reply : hotReplyMap.getOrDefault(q.getId(), Collections.emptyList())) {
+                if (!Boolean.TRUE.equals(reply.getAnonymity())) {
                     userIds.add(reply.getUserId());
                 }
             }
         }
-
-        // 3.3.根据id查询用户信息（提问者）
         userIds.remove(null);
         Map<Long, UserDTO> userMap = new HashMap<>(userIds.size());
-        if(CollUtils.isNotEmpty(userIds)) {
+        if (CollUtils.isNotEmpty(userIds)) {
             List<UserDTO> users = userClient.queryUserByIds(userIds);
             userMap = users.stream()
                     .collect(Collectors.toMap(UserDTO::getId, u -> u));
         }
 
-        // 4.封装VO
+        // 5.封装VO
         List<QuestionVO> voList = new ArrayList<>(records.size());
         for (InteractionQuestion r : records) {
-            // 4.1.将PO转为VO
             QuestionVO vo = BeanUtils.copyBean(r, QuestionVO.class);
             voList.add(vo);
-            // 4.2.封装提问者信息
-            if(!r.getAnonymity()){
+            if (!Boolean.TRUE.equals(r.getAnonymity())) {
                 UserDTO userDTO = userMap.get(r.getUserId());
                 if (userDTO != null) {
                     vo.setUserName(userDTO.getName());
                     vo.setUserIcon(userDTO.getIcon());
                 }
             }
-
-            // 4.3.封装最近一次回答的信息
-            InteractionReply reply = replyMap.get(r.getLatestAnswerId());
-            if (reply != null) {
-                vo.setLatestReplyContent(reply.getContent());
-                if(!reply.getAnonymity()){
-                    UserDTO user = userMap.get(reply.getUserId());
-                    vo.setLatestReplyUser(user.getName());
-                }
-
-            }
+            vo.setHotReplies(buildHotReplyVOList(
+                    hotReplyMap.getOrDefault(r.getId(), Collections.emptyList()), userMap));
         }
 
         return PageDTO.of(page, voList);
@@ -152,21 +139,38 @@ public class InteractionQuestionServiceImpl extends ServiceImpl<InteractionQuest
         // 1.根据id查询数据
         InteractionQuestion question = getById(id);
         // 2.数据校验
-        if(question == null || question.getHidden()){
+        if (question == null || Boolean.TRUE.equals(question.getHidden())) {
             // 没有数据或者是被隐藏了
             return null;
         }
-        // 3.查询提问者信息
-        UserDTO user = null;
-        if(!question.getAnonymity()){
-            user = userClient.queryUserById(question.getUserId());
+        // 3.加载热度回答
+        Map<Long, List<HotReplyCandidate>> hotReplyMap =
+                hotReplyService.loadHotReplies(Collections.singletonList(question),
+                        HotReplyConstants.API_TOP_N);
+        List<HotReplyCandidate> hotReplies =
+                hotReplyMap.getOrDefault(id, Collections.emptyList());
+        // 4.批量查询提问者与回答者信息
+        Set<Long> userIds = new HashSet<>();
+        if (!Boolean.TRUE.equals(question.getAnonymity())) {
+            userIds.add(question.getUserId());
         }
-        // 4.封装VO
+        for (HotReplyCandidate reply : hotReplies) {
+            if (!Boolean.TRUE.equals(reply.getAnonymity())) {
+                userIds.add(reply.getUserId());
+            }
+        }
+        userIds.remove(null);
+        Map<Long, UserDTO> userMap = queryUserMap(userIds);
+        // 5.封装VO
         QuestionVO vo = BeanUtils.copyBean(question, QuestionVO.class);
-        if (user != null) {
-            vo.setUserName(user.getName());
-            vo.setUserIcon(user.getIcon());
+        if (!Boolean.TRUE.equals(question.getAnonymity())) {
+            UserDTO user = userMap.get(question.getUserId());
+            if (user != null) {
+                vo.setUserName(user.getName());
+                vo.setUserIcon(user.getIcon());
+            }
         }
+        vo.setHotReplies(buildHotReplyVOList(hotReplies, userMap));
         return vo;
     }
 
@@ -196,6 +200,8 @@ public class InteractionQuestionServiceImpl extends ServiceImpl<InteractionQuest
         }
 
         // 3.准备VO需要的数据：用户数据、漫剧数据、章节数据
+        Map<Long, List<HotReplyCandidate>> hotReplyMap =
+                hotReplyService.loadHotReplies(records, HotReplyConstants.API_TOP_N);
         Set<Long> userIds = new HashSet<>();
         Set<Long> cIds = new HashSet<>();
         Set<Long> cataIds = new HashSet<>();
@@ -205,13 +211,14 @@ public class InteractionQuestionServiceImpl extends ServiceImpl<InteractionQuest
             cIds.add(q.getCourseId());
             cataIds.add(q.getChapterId());
             cataIds.add(q.getSectionId());
+            for (HotReplyCandidate reply : hotReplyMap.getOrDefault(q.getId(), Collections.emptyList())) {
+                if (!Boolean.TRUE.equals(reply.getAnonymity())) {
+                    userIds.add(reply.getUserId());
+                }
+            }
         }
         // 3.2.根据id查询用户
-        List<UserDTO> users = userClient.queryUserByIds(userIds);
-        Map<Long, UserDTO> userMap = new HashMap<>(users.size());
-        if (CollUtils.isNotEmpty(users)) {
-            userMap = users.stream().collect(Collectors.toMap(UserDTO::getId, u -> u));
-        }
+        Map<Long, UserDTO> userMap = queryUserMap(userIds);
 
         // 3.3.根据id查询漫剧
         List<ComicSimpleInfoDTO> cInfos = courseClient.getSimpleInfoList(cIds);
@@ -249,6 +256,9 @@ public class InteractionQuestionServiceImpl extends ServiceImpl<InteractionQuest
             // 4.4.章节信息
             vo.setChapterName(cataMap.getOrDefault(q.getChapterId(), ""));
             vo.setSectionName(cataMap.getOrDefault(q.getSectionId(), ""));
+            // 4.5.热度回答
+            vo.setHotReplies(buildHotReplyVOList(
+                    hotReplyMap.getOrDefault(q.getId(), Collections.emptyList()), userMap));
         }
         return PageDTO.of(page, voList);
     }
@@ -262,8 +272,21 @@ public class InteractionQuestionServiceImpl extends ServiceImpl<InteractionQuest
         }
         // 2.转PO为VO
         QuestionAdminVO vo = BeanUtils.copyBean(question, QuestionAdminVO.class);
-        // 3.查询提问者信息
-        UserDTO user = userClient.queryUserById(question.getUserId());
+        // 3.加载热度回答，并批量查询提问者与回答者信息
+        Map<Long, List<HotReplyCandidate>> hotReplyMap =
+                hotReplyService.loadHotReplies(Collections.singletonList(question),
+                        HotReplyConstants.API_TOP_N);
+        List<HotReplyCandidate> hotReplies =
+                hotReplyMap.getOrDefault(id, Collections.emptyList());
+        Set<Long> userIds = new HashSet<>();
+        userIds.add(question.getUserId());
+        for (HotReplyCandidate reply : hotReplies) {
+            if (!Boolean.TRUE.equals(reply.getAnonymity())) {
+                userIds.add(reply.getUserId());
+            }
+        }
+        Map<Long, UserDTO> userMap = queryUserMap(userIds);
+        UserDTO user = userMap.get(question.getUserId());
         if (user != null) {
             vo.setUserName(user.getName());
             vo.setUserIcon(user.getIcon());
@@ -294,7 +317,8 @@ public class InteractionQuestionServiceImpl extends ServiceImpl<InteractionQuest
         }
         vo.setChapterName(cataMap.getOrDefault(question.getChapterId(), ""));
         vo.setSectionName(cataMap.getOrDefault(question.getSectionId(), ""));
-        // 6.封装VO
+        // 6.封装热度回答
+        vo.setHotReplies(buildHotReplyVOList(hotReplies, userMap));
         return vo;
     }
 
@@ -305,6 +329,8 @@ public class InteractionQuestionServiceImpl extends ServiceImpl<InteractionQuest
         question.setId(id);
         question.setHidden(hidden);
         updateById(question);
+        // 2.取消隐藏后热度榜可能已过期，打脏标记等待重算
+        hotReplyService.markDirty(Collections.singleton(id));
     }
 
     @Override
@@ -348,5 +374,61 @@ public class InteractionQuestionServiceImpl extends ServiceImpl<InteractionQuest
         replyMapper.delete(
                 new QueryWrapper<InteractionReply>().lambda().eq(InteractionReply::getQuestionId, id)
         );
+        // 6.清理热度缓存
+        hotReplyService.cleanup(id);
+    }
+
+    /**
+     * 批量查询用户信息
+     */
+    private Map<Long, UserDTO> queryUserMap(Set<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        userIds.remove(null);
+        if (userIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<UserDTO> users = userClient.queryUserByIds(userIds);
+        if (CollUtils.isEmpty(users)) {
+            return Collections.emptyMap();
+        }
+        return users.stream().collect(Collectors.toMap(UserDTO::getId, u -> u));
+    }
+
+    /**
+     * 组装热度回答 VO；匿名回答不暴露用户身份
+     */
+    private List<HotReplyVO> buildHotReplyVOList(List<HotReplyCandidate> candidates,
+                                                 Map<Long, UserDTO> userMap) {
+        if (CollUtils.isEmpty(candidates)) {
+            return Collections.emptyList();
+        }
+        Map<Long, UserDTO> users = userMap == null ? Collections.emptyMap() : userMap;
+        List<HotReplyVO> result = new ArrayList<>(candidates.size());
+        for (HotReplyCandidate candidate : candidates) {
+            HotReplyVO vo = new HotReplyVO();
+            vo.setId(candidate.getReplyId());
+            vo.setContent(candidate.getContent());
+            vo.setAnonymity(candidate.getAnonymity());
+            vo.setLikedTimes(candidate.getLikedTimes());
+            vo.setReplyTimes(candidate.getReplyTimes());
+            vo.setCreateTime(candidate.getCreateTime());
+            vo.setHidden(candidate.getHidden());
+            if (Boolean.TRUE.equals(candidate.getAnonymity())) {
+                vo.setUserId(null);
+                vo.setUserName(null);
+                vo.setUserIcon(null);
+            } else {
+                vo.setUserId(candidate.getUserId());
+                UserDTO user = users.get(candidate.getUserId());
+                if (user != null) {
+                    vo.setUserName(user.getName());
+                    vo.setUserIcon(user.getIcon());
+                }
+            }
+            result.add(vo);
+        }
+        return result;
     }
 }
