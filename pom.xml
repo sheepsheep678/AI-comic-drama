@@ -17,13 +17,13 @@
         <module>media</module>
         <module>comic</module>
         <module>search</module>
-        <module>watch</module>
+        <module>comment</module>
         <module>pay</module>
         <module>order</module>
-        <module>quiz</module>
-        <module>unlock</module>
+        <module>question</module>
+        <module>voucher</module>
         <module>data</module>
-        <module>comment</module>
+        <module>liked</module>
     </modules>
     <packaging>pom</packaging>
 

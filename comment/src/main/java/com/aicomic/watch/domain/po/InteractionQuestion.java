@@ -1,0 +1,105 @@
+package com.aicomic.watch.domain.po;
+
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.aicomic.watch.enums.QuestionStatus;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.experimental.Accessors;
+
+import java.io.Serializable;
+import java.time.LocalDateTime;
+
+/**
+ * <p>
+ * 互动提问的问题表
+ * </p>
+ *
+ */
+@Data
+@EqualsAndHashCode(callSuper = false)
+@Accessors(chain = true)
+@TableName("interaction_question")
+public class InteractionQuestion implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
+    /**
+     * 主键，互动问题的id
+     */
+    @TableId(value = "id", type = IdType.ASSIGN_ID)
+    private Long id;
+
+    /**
+     * 互动问题的标题
+     */
+    private String title;
+
+    /**
+     * 问题描述信息
+     */
+    private String description;
+
+    /**
+     * 所属漫剧id
+     */
+    private Long courseId;
+
+    /**
+     * 所属漫剧章id
+     */
+    private Long chapterId;
+
+    /**
+     * 所属漫剧节id
+     */
+    private Long sectionId;
+
+    /**
+     * 提问观众id
+     */
+    private Long userId;
+
+    /**
+     * 最新的一个回答的id
+     */
+    private Long latestAnswerId;
+
+    /**
+     * 点赞最高的前4个回答id，逗号分隔；null-未计算，空串-已计算但无可见回答
+     */
+    private String topReplyIds;
+
+    /**
+     * 问题下的回答数量
+     */
+    private Integer answerTimes;
+
+    /**
+     * 是否匿名，默认false
+     */
+    private Boolean anonymity;
+
+    /**
+     * 是否被隐藏，默认false
+     */
+    private Boolean hidden;
+
+    /**
+     * 管理端问题状态：0-未查看，1-已查看
+     */
+    private QuestionStatus status;
+
+    /**
+     * 提问时间
+     */
+    private LocalDateTime createTime;
+
+    /**
+     * 更新时间
+     */
+    private LocalDateTime updateTime;
+
+
+}

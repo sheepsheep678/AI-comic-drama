@@ -47,6 +47,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
+        <!--redisson-->
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson</artifactId>
+        </dependency>
         <!--discovery-->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
@@ -57,10 +62,20 @@
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
         </dependency>
+        <!--caffeine本地缓存-->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
         <!--mq-->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+        <!--xxl-job-->
+        <dependency>
+            <groupId>com.xuxueli</groupId>
+            <artifactId>xxl-job-core</artifactId>
         </dependency>
         <!--loadbalancer-->
         <dependency>
@@ -82,7 +97,7 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <mainClass>com.aicomic.comment.CommentApplication</mainClass>
+                    <mainClass>com.aicomic.watch.WatchApplication</mainClass>
                 </configuration>
             </plugin>
         </plugins>
