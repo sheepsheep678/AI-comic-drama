@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.metadata.OrderItem;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.aicomic.common.autoconfigure.mq.RabbitMqHelper;
+import com.aicomic.common.autoconfigure.mq.RocketMqHelper;
 import com.aicomic.common.autoconfigure.redisson.annotations.Lock;
 import com.aicomic.common.autoconfigure.redisson.enums.LockStrategy;
 import com.aicomic.common.constants.MqConstants;
@@ -49,7 +49,7 @@ public class PayOrderServiceImpl extends ServiceImpl<PayOrderMapper, PayOrder> i
 
     @Resource
     private Map<String, IPayService> payServiceChannels;
-    private final RabbitMqHelper rabbitMqHelper;
+    private final RocketMqHelper rocketMqHelper;
 
     @Override
     @Lock(name = PayConstants.RedisKeyFormatter.PAY_APPLY, leaseTime = 3, autoUnlock = false)
@@ -244,9 +244,9 @@ public class PayOrderServiceImpl extends ServiceImpl<PayOrderMapper, PayOrder> i
         updatePayStatus2DB(response, payOrder.getId());
         // 3.4.判断状态是否是成功，成功需要发送MQ消息通知
         if (PayStatus.TRADE_SUCCESS.equalsValue(response.getPayStatus())) {
-            rabbitMqHelper.send(
-                    MqConstants.Exchange.PAY_EXCHANGE,
-                    MqConstants.Key.PAY_SUCCESS,
+            rocketMqHelper.send(
+                    MqConstants.Topic.PAY_TOPIC,
+                    MqConstants.Tag.PAY_SUCCESS_TAG,
                     PayResultDTO.builder()
                             .payOrderNo(payOrder.getPayOrderNo())
                             .bizOrderId(payOrder.getBizOrderNo())

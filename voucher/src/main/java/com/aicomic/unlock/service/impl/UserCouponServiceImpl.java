@@ -4,7 +4,7 @@ import cn.hutool.core.bean.copier.CopyOptions;
 import com.baomidou.mybatisplus.core.metadata.OrderItem;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.aicomic.common.autoconfigure.mq.RabbitMqHelper;
+import com.aicomic.common.autoconfigure.mq.RocketMqHelper;
 import com.aicomic.common.constants.MqConstants;
 import com.aicomic.common.domain.dto.PageDTO;
 import com.aicomic.common.exceptions.BizIllegalException;
@@ -60,7 +60,7 @@ public class UserCouponServiceImpl extends ServiceImpl<UserCouponMapper, UserCou
 
     private final StringRedisTemplate redisTemplate;
 
-    private final RabbitMqHelper mqHelper;
+    private final RocketMqHelper mqHelper;
 
     private static final RedisScript<Long> RECEIVE_COUPON_SCRIPT;
     private static final RedisScript<String> EXCHANGE_COUPON_SCRIPT;
@@ -116,7 +116,7 @@ public class UserCouponServiceImpl extends ServiceImpl<UserCouponMapper, UserCou
         UserCouponDTO uc = new UserCouponDTO();
         uc.setUserId(userId);
         uc.setCouponId(couponId);
-        mqHelper.send(MqConstants.Exchange.UNLOCK_EXCHANGE, MqConstants.Key.COUPON_RECEIVE, uc);
+        mqHelper.send(MqConstants.Topic.UNLOCK_TOPIC, MqConstants.Tag.COUPON_RECEIVE_TAG, uc);
     }
 
     private Coupon queryCouponByCache(Long couponId) {
@@ -178,7 +178,7 @@ public class UserCouponServiceImpl extends ServiceImpl<UserCouponMapper, UserCou
         uc.setUserId(userId);
         uc.setCouponId(r);
         uc.setSerialNum((int) serialNum);
-        mqHelper.send(MqConstants.Exchange.UNLOCK_EXCHANGE, MqConstants.Key.COUPON_RECEIVE, uc);
+        mqHelper.send(MqConstants.Topic.UNLOCK_TOPIC, MqConstants.Tag.COUPON_RECEIVE_TAG, uc);
         /*// 2.校验是否已经兑换 SETBIT KEY 4 1
         boolean exchanged = codeService.updateExchangeMark(serialNum, true);
         if (exchanged) {
@@ -212,7 +212,7 @@ public class UserCouponServiceImpl extends ServiceImpl<UserCouponMapper, UserCou
             uc.setUserId(userId);
             uc.setCouponId(couponId);
             uc.setSerialNum((int) serialNum);
-            mqHelper.send(MqConstants.Exchange.UNLOCK_EXCHANGE, MqConstants.Key.COUPON_RECEIVE, uc);
+            mqHelper.send(MqConstants.Topic.UNLOCK_TOPIC, MqConstants.Tag.COUPON_RECEIVE_TAG, uc);
         } catch (Exception e) {
             // 重置兑换的标记 0
             codeService.updateExchangeMark(serialNum, false);

@@ -13,7 +13,7 @@ import com.aicomic.api.dto.comic.*;
 import com.aicomic.api.dto.watch.WatchEpisodeDTO;
 import com.aicomic.api.dto.watch.WatchRecordDTO;
 import com.aicomic.api.dto.user.UserDTO;
-import com.aicomic.common.autoconfigure.mq.RabbitMqHelper;
+import com.aicomic.common.autoconfigure.mq.RocketMqHelper;
 import com.aicomic.common.constants.ErrorInfo;
 import com.aicomic.common.constants.MqConstants;
 import com.aicomic.common.domain.dto.PageDTO;
@@ -66,7 +66,7 @@ public class ComicServiceImpl extends ServiceImpl<ComicMapper, Comic> implements
     private IComicDraftService comicDraftService;
 
     @Autowired
-    private RabbitMqHelper rabbitMqHelper;
+    private RocketMqHelper rocketMqHelper;
 
     @Autowired
     private IComicEpisodeService comicEpisodeService;
@@ -158,7 +158,7 @@ public class ComicServiceImpl extends ServiceImpl<ComicMapper, Comic> implements
         //1.删除草稿信息
         comicDraftService.delete(id);
         //2.发送删除草稿mq
-        rabbitMqHelper.send(MqConstants.Exchange.COMIC_EXCHANGE, MqConstants.Key.COMIC_DELETE_KEY, id);
+        rocketMqHelper.send(MqConstants.Topic.COMIC_TOPIC, MqConstants.Tag.COMIC_DELETE_TAG, id);
     }
 
     @Override
@@ -522,8 +522,8 @@ public class ComicServiceImpl extends ServiceImpl<ComicMapper, Comic> implements
     private void sendFinishedCourse(List<Comic> finishedCourse) {
         //1.遍历发送漫剧完结mq
         for (Comic course : finishedCourse) {
-            rabbitMqHelper.sendAsyn(MqConstants.Exchange.COMIC_EXCHANGE,
-                    MqConstants.Key.COMIC_EXPIRE_KEY,
+            rocketMqHelper.sendAsyn(MqConstants.Topic.COMIC_TOPIC,
+                    MqConstants.Tag.COMIC_EXPIRE_TAG,
                     course.getId());
         }
     }

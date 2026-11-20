@@ -1,5 +1,5 @@
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
- com.aicomic.common.autoconfigure.mq.MqConfig,\
+ com.aicomic.common.autoconfigure.mq.RocketMqConfig,\
  com.aicomic.common.autoconfigure.mvc.JsonConfig,\
  com.aicomic.common.autoconfigure.mvc.MvcConfig,\
  com.aicomic.common.autoconfigure.mvc.ParamCheckerConfig,\

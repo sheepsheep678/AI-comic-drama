@@ -3,7 +3,7 @@ package com.aicomic.comment.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.aicomic.api.dto.comment.LikeTimesDTO;
-import com.aicomic.common.autoconfigure.mq.RabbitMqHelper;
+import com.aicomic.common.autoconfigure.mq.RocketMqHelper;
 import com.aicomic.common.utils.StringUtils;
 import com.aicomic.common.utils.UserContext;
 import com.aicomic.comment.domain.dto.LikeRecordFormDTO;
@@ -16,8 +16,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static com.aicomic.common.constants.MqConstants.Exchange.LIKE_RECORD_EXCHANGE;
-import static com.aicomic.common.constants.MqConstants.Key.LIKE_TIMES_KEY_TEMPLATE;
+import static com.aicomic.common.constants.MqConstants.Topic.LIKE_RECORD_TOPIC;
+import static com.aicomic.common.constants.MqConstants.Tag.LIKE_TIMES_TAG_TEMPLATE;
 
 /**
  * <p>
@@ -29,7 +29,7 @@ import static com.aicomic.common.constants.MqConstants.Key.LIKE_TIMES_KEY_TEMPLA
 @RequiredArgsConstructor
 public class LikeRecordServiceImpl extends ServiceImpl<LikeRecordMapper, LikeRecord> implements ILikeRecordService {
 
-    private final RabbitMqHelper mqHelper;
+    private final RocketMqHelper mqHelper;
 
     @Override
     public void addLikeRecord(LikeRecordFormDTO recordDTO) {
@@ -45,8 +45,8 @@ public class LikeRecordServiceImpl extends ServiceImpl<LikeRecordMapper, LikeRec
                 .count();
         // 4.发送MQ通知
         mqHelper.send(
-                LIKE_RECORD_EXCHANGE,
-                StringUtils.format(LIKE_TIMES_KEY_TEMPLATE, recordDTO.getBizType()),
+                LIKE_RECORD_TOPIC,
+                StringUtils.format(LIKE_TIMES_TAG_TEMPLATE, recordDTO.getBizType()),
                 LikeTimesDTO.of(recordDTO.getBizId(), likedTimes));
     }
 

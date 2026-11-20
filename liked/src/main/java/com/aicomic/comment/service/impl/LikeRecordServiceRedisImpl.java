@@ -2,7 +2,7 @@ package com.aicomic.comment.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.aicomic.api.dto.comment.LikeTimesDTO;
-import com.aicomic.common.autoconfigure.mq.RabbitMqHelper;
+import com.aicomic.common.autoconfigure.mq.RocketMqHelper;
 import com.aicomic.common.utils.CollUtils;
 import com.aicomic.common.utils.StringUtils;
 import com.aicomic.common.utils.UserContext;
@@ -24,8 +24,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static com.aicomic.common.constants.MqConstants.Exchange.LIKE_RECORD_EXCHANGE;
-import static com.aicomic.common.constants.MqConstants.Key.LIKE_TIMES_KEY_TEMPLATE;
+import static com.aicomic.common.constants.MqConstants.Topic.LIKE_RECORD_TOPIC;
+import static com.aicomic.common.constants.MqConstants.Tag.LIKE_TIMES_TAG_TEMPLATE;
 
 /**
  * <p>
@@ -37,7 +37,7 @@ import static com.aicomic.common.constants.MqConstants.Key.LIKE_TIMES_KEY_TEMPLA
 @RequiredArgsConstructor
 public class LikeRecordServiceRedisImpl extends ServiceImpl<LikeRecordMapper, LikeRecord> implements ILikeRecordService {
 
-    private final RabbitMqHelper mqHelper;
+    private final RocketMqHelper mqHelper;
     private final StringRedisTemplate redisTemplate;
 
     @Override
@@ -102,8 +102,8 @@ public class LikeRecordServiceRedisImpl extends ServiceImpl<LikeRecordMapper, Li
         }
         // 3.发送MQ消息
         mqHelper.send(
-                LIKE_RECORD_EXCHANGE,
-                StringUtils.format(LIKE_TIMES_KEY_TEMPLATE, bizType),
+                LIKE_RECORD_TOPIC,
+                StringUtils.format(LIKE_TIMES_TAG_TEMPLATE, bizType),
                 list);
     }
 

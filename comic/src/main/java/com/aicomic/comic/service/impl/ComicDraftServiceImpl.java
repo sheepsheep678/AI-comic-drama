@@ -13,7 +13,7 @@ import com.aicomic.api.dto.comic.ComicDTO;
 import com.aicomic.api.dto.comic.ComicPurchaseInfoDTO;
 import com.aicomic.api.dto.quiz.QuestionBizDTO;
 import com.aicomic.api.dto.user.UserDTO;
-import com.aicomic.common.autoconfigure.mq.RabbitMqHelper;
+import com.aicomic.common.autoconfigure.mq.RocketMqHelper;
 import com.aicomic.common.constants.ErrorInfo;
 import com.aicomic.common.constants.MqConstants;
 import com.aicomic.common.domain.dto.PageDTO;
@@ -93,7 +93,7 @@ public class ComicDraftServiceImpl extends ServiceImpl<ComicDraftMapper, ComicDr
     private ICategoryService categoryService;
 
     @Autowired
-    private RabbitMqHelper rabbitMqHelper;
+    private RocketMqHelper rocketMqHelper;
 
     @Autowired
     private OrderClient orderClient;
@@ -403,8 +403,8 @@ public class ComicDraftServiceImpl extends ServiceImpl<ComicDraftMapper, ComicDr
 
         }
         //5.漫剧上架mq
-        rabbitMqHelper.sendAsyn(MqConstants.Exchange.COMIC_EXCHANGE,
-                MqConstants.Key.COMIC_UP_KEY,
+        rocketMqHelper.sendAsyn(MqConstants.Topic.COMIC_TOPIC,
+                MqConstants.Tag.COMIC_UP_TAG,
                 id,
                 200L);
     }
@@ -473,7 +473,7 @@ public class ComicDraftServiceImpl extends ServiceImpl<ComicDraftMapper, ComicDr
         //7.漫剧创作者copy到草稿中
         comicCreatorDraftMapper.insertFromCourseTeacher(id);
         //8.下架mq广播
-        rabbitMqHelper.send(MqConstants.Exchange.COMIC_EXCHANGE, MqConstants.Key.COMIC_DOWN_KEY, id);
+        rocketMqHelper.send(MqConstants.Topic.COMIC_TOPIC, MqConstants.Tag.COMIC_DOWN_TAG, id);
     }
 
     @GlobalTransactional

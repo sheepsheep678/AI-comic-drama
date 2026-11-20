@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 AI漫剧内容管理与分发平台: a Spring Cloud microservice backend for managing and distributing AI comic-drama content. Business code, comments, and domain terms are Chinese; keep new comments in Chinese when editing existing files.
 
-Stack: Java 11, Spring Boot 2.7.2, Spring Cloud 2021.0.3, Spring Cloud Alibaba (Nacos discovery/config), OpenFeign, MyBatis-Plus 3.4.3, MySQL, Redis/Redisson, RabbitMQ, Elasticsearch 7.12, Seata, XXL-Job, Knife4j/Swagger, Tencent COS/VOD. There is no CI, lint/format config, or Maven wrapper.
+Stack: Java 11, Spring Boot 2.7.2, Spring Cloud 2021.0.3, Spring Cloud Alibaba (Nacos discovery/config), OpenFeign, MyBatis-Plus 3.4.3, MySQL, Redis/Redisson, RocketMQ, Elasticsearch 7.12, Seata, XXL-Job, Knife4j/Swagger, Tencent COS/VOD. There is no CI, lint/format config, or Maven wrapper.
 
 Package/class/service/table names are comic-domain, but some persisted Java fields still use older column names (`courseId`, `cataId`, `subjectId`, `teacherId`, `lessonId`, `sectionId`) so the existing schema stays compatible. Do not change those persistence names without a coordinated schema migration.
 
@@ -21,7 +21,7 @@ The POM targets Java 11, but `mvn` on this machine defaults to JDK 8. Set `JAVA_
 - All tests: `mvn test`; one class: `mvn -pl unlock test -Dtest=CodeUtilTest`; one method: `mvn -pl unlock test -Dtest=CodeUtilTest#method`
 - Local profile: `--spring.profiles.active=local` (changes the registered discovery IP; `dev` is the default)
 
-Runtime config comes from Nacos at `192.168.150.101:8848` (namespace `f923fb34-cb0a-4c06-8fca-ad61ea61a3f0`). Only `bootstrap.yml` and `bootstrap-{dev,local}.yml` are in the repo; MySQL/Redis/RabbitMQ/ES/XXL-Job/Seata settings and the `shared-*.yaml` files live in Nacos. There is no `application.yml`. Running services or `@SpringBootTest` requires this external infrastructure.
+Runtime config comes from Nacos at `192.168.150.101:8848` (namespace `f923fb34-cb0a-4c06-8fca-ad61ea61a3f0`). Only `bootstrap.yml` and `bootstrap-{dev,local}.yml` are in the repo; MySQL/Redis/RocketMQ/ES/XXL-Job/Seata settings and the `shared-*.yaml` files live in Nacos. There is no `application.yml`. Running services or `@SpringBootTest` requires this external infrastructure.
 
 ## Service map
 
@@ -55,7 +55,7 @@ Gateway routes (`gateway/src/main/resources/bootstrap.yml`) map a first path seg
 
 ## Shared building blocks
 
-- `common` (`ac-common`) — auto-configured through `META-INF/spring.factories`: Jackson (date/time), response wrapping, exception advice, `RequestIdFilter`, MyBatis-Plus (pagination max 200, create/update auto-fill), Redisson with the `@Lock` annotation (SpEL lock names), RabbitMQ helpers (`RabbitMqHelper` with delayed messages and `error.topic` republishing), Knife4j, XXL-Job. Also holds `R`, `PageQuery`, enums, exceptions, and most utilities.
+- `common` (`ac-common`) — auto-configured through `META-INF/spring.factories`: Jackson (date/time), response wrapping, exception advice, `RequestIdFilter`, MyBatis-Plus (pagination max 200, create/update auto-fill), Redisson with the `@Lock` annotation (SpEL lock names), RocketMQ helpers (`RocketMqHelper` with delayed messages and request-ID relay), Knife4j, XXL-Job. Also holds `R`, `PageQuery`, enums, exceptions, and most utilities.
 - `api` (`ac-api`) — cross-service DTOs and Feign clients under `com.aicomic.api.client.*`, DTOs under `com.aicomic.api.dto.*`, Caffeine caches (`CategoryCache`, `RoleCache`), and Feign fallbacks. `RequestIdRelayConfiguration` enables Feign scanning and adds `requestId` + `x-request-from: feign` to every Feign call.
 - `auth/ac-auth-common` — JWT constants and `PrivilegeRoleDTO`.
 - `auth/ac-auth-gateway-sdk` — gateway-side `AuthUtil`/`JwtSignerHolder` (used by `gateway`).
@@ -64,10 +64,10 @@ Gateway routes (`gateway/src/main/resources/bootstrap.yml`) map a first path seg
 
 ## Async and background processing
 
-- RabbitMQ: exchange/routing-key constants live in `common/constants/MqConstants` (`comic.topic`, `order.topic`, `watch.topic`, `pay.topic`, `unlock.topic`, `sms.direct`, `like.record.topic`, `order.delay.topic`). Request IDs are relayed into consumer MDC. Failed messages are republished to `error.topic`.
+- RocketMQ: topic/tag constants live in `common/constants/MqConstants` (`Topic`, `Tag`, `ConsumerGroup`). RabbitMQ exchanges map to RocketMQ topics (`comic_topic`, `order_topic`, `watch_topic`, `pay_topic`, `unlock_topic`, `sms_topic`, `like_record_topic`, `order_delay_topic`) and routing keys map to tags. Listeners extend `AbstractRocketMqListener`, which relays the request ID into consumer MDC and deserializes the JSON body with the shared `ObjectMapper`. Failed messages use RocketMQ's retry and dead-letter queues.
 - XXL-Job: `@XxlJob` handlers in comic, watch, message, pay, unlock, and order; admin/executor config is `ac.xxl-job` in Nacos.
 - Redis/Redisson: `@Lock` for distributed locks; unlock uses Lua scripts (`unlock/src/main/resources/lua/*.lua`) for atomic coupon receipt.
-- Delayed work: `RabbitMqHelper.sendDelayMessage` for order timeout/refund flows; watch uses an in-process `DelayQueue` plus Redis cache (`WatchRecordDelayTaskHandler`) to batch playback-progress writes.
+- Delayed work: `RocketMqHelper.sendDelayMessage` for order timeout/refund flows, implemented with RocketMQ delay levels (rounded up to the nearest level; exact timestamps need a 5.x broker); watch uses an in-process `DelayQueue` plus Redis cache (`WatchRecordDelayTaskHandler`) to batch playback-progress writes.
 - Search indexing is event-driven: `search` listens to comic/order MQ events and writes Elasticsearch through `RestHighLevelClient` (`repository/impl`).
 - Seata `@GlobalTransactional` is used only in comic draft publishing (`ComicDraftServiceImpl`).
 - Feature patterns: unlock uses strategy classes under `strategy/discount` and `strategy/scope`; pay abstracts channels behind `IPayService` with Ali/Wx implementations; media abstracts storage under `storage/ali` and `storage/tencent`; message abstracts SMS providers under `thirdparty/*`.
@@ -88,4 +88,4 @@ Ten test classes live under `<module>/src/test/java`, mostly ad-hoc `@SpringBoot
 
 ## Runtime configuration checklist
 
-Before starting services, ensure Nacos contains the `ac.*` keys (`ac.jdbc.database`, `ac.auth.resource.*`, `ac.swagger.*`, `ac.xxl-job.*`, `ac.mq.*`) and MySQL contains the `aicomic_*` databases. Service-specific Nacos data-ids must match the `spring.application.name` values in the table above. RabbitMQ exchanges/routing keys are defined in `MqConstants` and must match the broker topology. After changing controller paths, update the auth `privilege` table and clear the Redis `auth:privileges` cache.
+Before starting services, ensure Nacos contains the `ac.*` keys (`ac.jdbc.database`, `ac.auth.resource.*`, `ac.swagger.*`, `ac.xxl-job.*`) plus the RocketMQ `rocketmq.name-server` / `rocketmq.producer.group` settings (in `shared-mq.yaml`), and MySQL contains the `aicomic_*` databases. Service-specific Nacos data-ids must match the `spring.application.name` values in the table above. RocketMQ topics/tags and consumer groups are defined in `MqConstants` and must match the broker topology. After changing controller paths, update the auth `privilege` table and clear the Redis `auth:privileges` cache.

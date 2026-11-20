@@ -1,7 +1,7 @@
 package com.aicomic.message.api.config;
 
 
-import com.aicomic.common.autoconfigure.mq.RabbitMqHelper;
+import com.aicomic.common.autoconfigure.mq.RocketMqHelper;
 import com.aicomic.message.api.client.AsyncSmsClient;
 import feign.RequestInterceptor;
 import org.slf4j.MDC;
@@ -25,7 +25,7 @@ public class MessageClientConfiguration {
     }
 
     @Bean
-    public AsyncSmsClient smsClient(RabbitMqHelper mqHelper){
+    public AsyncSmsClient smsClient(RocketMqHelper mqHelper){
         return new AsyncSmsClient(mqHelper);
     }
 }

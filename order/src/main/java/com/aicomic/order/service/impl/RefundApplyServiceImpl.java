@@ -6,7 +6,7 @@ import com.aicomic.api.cache.RoleCache;
 import com.aicomic.api.client.user.UserClient;
 import com.aicomic.api.dto.order.OrderBasicDTO;
 import com.aicomic.api.dto.user.UserDTO;
-import com.aicomic.common.autoconfigure.mq.RabbitMqHelper;
+import com.aicomic.common.autoconfigure.mq.RocketMqHelper;
 import com.aicomic.common.constants.Constant;
 import com.aicomic.common.constants.ErrorInfo;
 import com.aicomic.common.constants.MqConstants;
@@ -66,7 +66,7 @@ public class RefundApplyServiceImpl extends ServiceImpl<RefundApplyMapper, Refun
     private final PayClient payClient;
     private final RoleCache roleCache;
     private final ThreadPoolTaskExecutor sendRefundRequestExecutor;
-    private final RabbitMqHelper rabbitMqHelper;
+    private final RocketMqHelper rocketMqHelper;
 
     @Override
     public List<RefundApply> queryByDetailId(Long id) {
@@ -446,9 +446,9 @@ public class RefundApplyServiceImpl extends ServiceImpl<RefundApplyMapper, Refun
             // 4.1.查询子订单信息
             OrderDetail detail = detailService.getById(refundApply.getOrderDetailId());
             // 4.2.发送MQ消息，通知领取成功
-            rabbitMqHelper.send(
-                    MqConstants.Exchange.ORDER_EXCHANGE,
-                    MqConstants.Key.ORDER_REFUND_KEY,
+            rocketMqHelper.send(
+                    MqConstants.Topic.ORDER_TOPIC,
+                    MqConstants.Tag.ORDER_REFUND_TAG,
                     OrderBasicDTO.builder()
                             .orderId(refundApply.getOrderId())
                             .userId(refundApply.getUserId())

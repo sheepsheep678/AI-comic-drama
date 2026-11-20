@@ -1,6 +1,6 @@
 package com.aicomic.watch.service.impl;
 
-import com.aicomic.common.autoconfigure.mq.RabbitMqHelper;
+import com.aicomic.common.autoconfigure.mq.RocketMqHelper;
 import com.aicomic.common.constants.MqConstants;
 import com.aicomic.common.exceptions.BizIllegalException;
 import com.aicomic.common.utils.BooleanUtils;
@@ -25,7 +25,7 @@ public class SignRecordServiceImpl implements ISignRecordService {
 
     private final StringRedisTemplate redisTemplate;
 
-    private final RabbitMqHelper mqHelper;
+    private final RocketMqHelper mqHelper;
 
     @Override
     public SignResultVO addSignRecords() {
@@ -62,8 +62,8 @@ public class SignRecordServiceImpl implements ISignRecordService {
         }
         // 4.保存积分明细记录
         mqHelper.send(
-                MqConstants.Exchange.WATCH_EXCHANGE,
-                MqConstants.Key.SIGN_IN,
+                MqConstants.Topic.WATCH_TOPIC,
+                MqConstants.Tag.SIGN_IN_TAG,
                 SignInMessage.of(userId, rewardPoints + 1));
         // 5.封装返回
         SignResultVO vo = new SignResultVO();

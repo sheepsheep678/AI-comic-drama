@@ -6,7 +6,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.aicomic.api.client.comment.CommentClient;
 import com.aicomic.api.client.user.UserClient;
 import com.aicomic.api.dto.user.UserDTO;
-import com.aicomic.common.autoconfigure.mq.RabbitMqHelper;
+import com.aicomic.common.autoconfigure.mq.RocketMqHelper;
 import com.aicomic.common.constants.MqConstants;
 import com.aicomic.common.domain.dto.PageDTO;
 import com.aicomic.common.exceptions.BadRequestException;
@@ -47,7 +47,7 @@ public class InteractionReplyServiceImpl extends ServiceImpl<InteractionReplyMap
     private final IInteractionQuestionService questionService;
     private final UserClient userClient;
     private final CommentClient commentClient;
-    private final RabbitMqHelper mqHelper;
+    private final RocketMqHelper mqHelper;
     private final IHotReplyService hotReplyService;
 
     @Override
@@ -88,8 +88,8 @@ public class InteractionReplyServiceImpl extends ServiceImpl<InteractionReplyMap
         if(Boolean.TRUE.equals(replyDTO.getIsViewer())) {
             // 观众才需要累加积分
             mqHelper.send(
-                    MqConstants.Exchange.WATCH_EXCHANGE,
-                    MqConstants.Key.WRITE_REPLY,
+                    MqConstants.Topic.WATCH_TOPIC,
+                    MqConstants.Tag.WRITE_REPLY_TAG,
                     5);
         }
     }

@@ -1,57 +1,44 @@
 package com.aicomic.order.handler;
 
-import com.aicomic.common.constants.MqConstants;
+import com.aicomic.common.autoconfigure.mq.AbstractRocketMqListener;
 import com.aicomic.pay.sdk.dto.PayResultDTO;
 import com.aicomic.pay.sdk.dto.RefundResultDTO;
-import com.aicomic.order.domain.dto.OrderDelayQueryDTO;
 import com.aicomic.order.service.IOrderService;
-import com.aicomic.order.service.IPayService;
 import com.aicomic.order.service.IRefundApplyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.core.ExchangeTypes;
-import org.springframework.amqp.rabbit.annotation.Exchange;
-import org.springframework.amqp.rabbit.annotation.Queue;
-import org.springframework.amqp.rabbit.annotation.QueueBinding;
-import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.apache.rocketmq.common.message.MessageExt;
+import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.springframework.stereotype.Component;
+
+import static com.aicomic.common.constants.MqConstants.ConsumerGroup.ORDER_PAY_RESULT_GROUP;
+import static com.aicomic.common.constants.MqConstants.Tag.PAY_SUCCESS_TAG;
+import static com.aicomic.common.constants.MqConstants.Tag.REFUND_CHANGE_TAG;
+import static com.aicomic.common.constants.MqConstants.Topic.PAY_TOPIC;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class PayMessageHandler {
+@RocketMQMessageListener(
+        topic = PAY_TOPIC,
+        selectorExpression = PAY_SUCCESS_TAG + " || " + REFUND_CHANGE_TAG,
+        consumerGroup = ORDER_PAY_RESULT_GROUP
+)
+public class PayMessageHandler extends AbstractRocketMqListener {
 
     private final IOrderService orderService;
     private final IRefundApplyService refundApplyService;
-    private final IPayService payService;
 
-    @RabbitListener(bindings = @QueueBinding(
-            value = @Queue(name = "order.pay.success.queue", durable = "true"),
-            exchange = @Exchange(name = MqConstants.Exchange.PAY_EXCHANGE, type = ExchangeTypes.TOPIC),
-            key = MqConstants.Key.PAY_SUCCESS
-    ))
-    public void listenPaySuccess(PayResultDTO payResult){
-        log.debug("收到支付成功通知：{}", payResult);
-        orderService.handlePaySuccess(payResult);
-    }
-
-    @RabbitListener(bindings = @QueueBinding(
-            value = @Queue(name = "order.refund.result.queue", durable = "true"),
-            exchange = @Exchange(name = MqConstants.Exchange.PAY_EXCHANGE, type = ExchangeTypes.TOPIC),
-            key = MqConstants.Key.REFUND_CHANGE
-    ))
-    public void listenRefundResult(RefundResultDTO refundResult){
-        log.debug("收到退款变更成功通知：{}", refundResult);
-        refundApplyService.handleRefundResult(refundResult);
-    }
-
-    @RabbitListener(bindings = @QueueBinding(
-            value = @Queue(name = "order.delay.order.query", durable = "true"),
-            exchange = @Exchange(name = MqConstants.Exchange.ORDER_DELAY_EXCHANGE, delayed = "true", type = ExchangeTypes.TOPIC),
-            key = MqConstants.Key.ORDER_DELAY_KEY
-    ))
-    public void listenOrderDelayQueryMessage(OrderDelayQueryDTO message){
-        log.debug("收到订单延迟查询通知：{}", message);
-        payService.queryPayResult(message);
+    @Override
+    protected void handleMessage(MessageExt message) {
+        if (PAY_SUCCESS_TAG.equals(message.getTags())) {
+            PayResultDTO payResult = readMessage(message, PayResultDTO.class);
+            log.debug("收到支付成功通知：{}", payResult);
+            orderService.handlePaySuccess(payResult);
+        } else if (REFUND_CHANGE_TAG.equals(message.getTags())) {
+            RefundResultDTO refundResult = readMessage(message, RefundResultDTO.class);
+            log.debug("收到退款变更成功通知：{}", refundResult);
+            refundApplyService.handleRefundResult(refundResult);
+        }
     }
 }

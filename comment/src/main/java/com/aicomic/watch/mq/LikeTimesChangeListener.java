@@ -1,16 +1,15 @@
 package com.aicomic.watch.mq;
 
 import com.aicomic.api.dto.comment.LikeTimesDTO;
+import com.aicomic.common.autoconfigure.mq.AbstractRocketMqListener;
 import com.aicomic.watch.domain.po.InteractionReply;
 import com.aicomic.watch.service.IHotReplyService;
 import com.aicomic.watch.service.IInteractionReplyService;
+import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.amqp.core.ExchangeTypes;
-import org.springframework.amqp.rabbit.annotation.Exchange;
-import org.springframework.amqp.rabbit.annotation.Queue;
-import org.springframework.amqp.rabbit.annotation.QueueBinding;
-import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.apache.rocketmq.common.message.MessageExt;
+import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -20,23 +19,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static com.aicomic.common.constants.MqConstants.Exchange.LIKE_RECORD_EXCHANGE;
-import static com.aicomic.common.constants.MqConstants.Key.QA_LIKE_TIMES_KEY;
+import static com.aicomic.common.constants.MqConstants.ConsumerGroup.LIKE_TIMES_CHANGE_GROUP;
+import static com.aicomic.common.constants.MqConstants.Tag.QA_LIKE_TIMES_TAG;
+import static com.aicomic.common.constants.MqConstants.Topic.LIKE_RECORD_TOPIC;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class LikeTimesChangeListener {
+@RocketMQMessageListener(
+        topic = LIKE_RECORD_TOPIC,
+        selectorExpression = QA_LIKE_TIMES_TAG,
+        consumerGroup = LIKE_TIMES_CHANGE_GROUP
+)
+public class LikeTimesChangeListener extends AbstractRocketMqListener {
 
     private final IInteractionReplyService replyService;
     private final IHotReplyService hotReplyService;
 
-    @RabbitListener(bindings = @QueueBinding(
-            value = @Queue(name = "qa.liked.times.queue", durable = "true"),
-            exchange = @Exchange(name = LIKE_RECORD_EXCHANGE, type = ExchangeTypes.TOPIC),
-            key = QA_LIKE_TIMES_KEY
-    ))
-    public void listenReplyLikedTimesChange(List<LikeTimesDTO> likedTimesDTOs) {
+    @Override
+    protected void handleMessage(MessageExt message) {
+        List<LikeTimesDTO> likedTimesDTOs = readMessage(message, new TypeReference<List<LikeTimesDTO>>() {
+        });
         log.debug("监听到回答或评论的点赞数变更");
         if (likedTimesDTOs == null || likedTimesDTOs.isEmpty()) {
             return;

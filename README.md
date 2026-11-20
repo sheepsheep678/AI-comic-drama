@@ -40,7 +40,7 @@
 - **商业化**：支持剧集付费解锁、限时活动、优惠券、兑换码，以及支付宝/微信支付与退款；
 - **运营侧**：后台提供用户与权限管理、内容审核、消息推送和数据看板。
 
-后端采用 Spring Cloud 微服务架构，按业务域拆分为多个独立服务，每个服务独享数据库，服务间通过 OpenFeign 同步调用、RabbitMQ 异步解耦，并由网关统一完成路由、认证与请求追踪。
+后端采用 Spring Cloud 微服务架构，按业务域拆分为多个独立服务，每个服务独享数据库，服务间通过 OpenFeign 同步调用、RocketMQ 异步解耦，并由网关统一完成路由、认证与请求追踪。
 
 ## 功能特性
 
@@ -62,8 +62,8 @@
 
 - **网关统一认证**：JWT 校验 + Redis 权限缓存，下游服务通过 `user-info` 请求头与 `UserContext` 传递身份，Feign 调用自动透传。
 - **全链路请求追踪**：`requestId` 贯穿网关、服务、Feign、MQ 消费与日志 MDC。
-- **异步与延迟任务**：RabbitMQ 处理内容/订单/支付/点赞等领域事件，延迟消息用于订单超时与退款流程；XXL-Job 负责定时任务。
-- **最终一致与分布式事务**：失败消息进入 `error.topic` 重投；内容发布使用 Seata `@GlobalTransactional`。
+- **异步与延迟任务**：RocketMQ 处理内容/订单/支付/点赞等领域事件，延迟消息用于订单超时与退款流程；XXL-Job 负责定时任务。
+- **最终一致与分布式事务**：消费失败由 RocketMQ 重试与死信队列兜底；内容发布使用 Seata `@GlobalTransactional`。
 - **分布式锁与原子操作**：Redisson `@Lock`（支持 SpEL 锁名），优惠券领取使用 Lua 脚本。
 - **策略化扩展**：支付渠道（支付宝/微信）、存储（阿里/腾讯）、短信厂商、优惠策略与适用范围均以策略模式组织。
 
@@ -76,7 +76,7 @@
 | 服务治理 | Nacos（注册中心 + 配置中心）、OpenFeign、Spring Cloud Gateway |
 | 数据访问 | MyBatis-Plus 3.4.3、MySQL 8.0 |
 | 缓存 / 锁 | Redis、Redisson 3.13.6 |
-| 消息队列 | RabbitMQ |
+| 消息队列 | RocketMQ |
 | 搜索 | Elasticsearch 7.12 |
 | 分布式事务 | Seata 1.5.1 |
 | 任务调度 | XXL-Job 2.3.1 |
@@ -114,7 +114,7 @@ flowchart LR
         nacos[(Nacos)]
         mysql[(MySQL<br/>aicomic_*)]
         redis[(Redis)]
-        mq[(RabbitMQ)]
+        mq[(RocketMQ)]
         es[(Elasticsearch)]
         xxl[XXL-Job]
         seata[Seata]
@@ -228,7 +228,7 @@ GET http://localhost:10010/us/users   →  user-service /users
 | Maven | 3.6+（项目未提供 Maven Wrapper） |
 | MySQL | 8.0+，需创建各服务对应的 `aicomic_*` 数据库 |
 | Redis | 5.0+ |
-| RabbitMQ | 3.8+，需与 `MqConstants` 中的交换机 / 路由键一致 |
+| RocketMQ | 4.9+（或 5.x），需与 `MqConstants` 中的 Topic / Tag 一致 |
 | Nacos | 2.x，作为注册中心与配置中心 |
 | Elasticsearch | 7.12（搜索服务需要） |
 | XXL-Job | 2.3.1（定时任务需要，可选） |
@@ -253,10 +253,10 @@ mvn -DskipTests test-compile
 
 ### 2. 准备基础设施与配置
 
-1. 启动 Nacos、MySQL、Redis、RabbitMQ（搜索 / 定时任务 / 分布式事务按需启动 ES、XXL-Job、Seata）。
+1. 启动 Nacos、MySQL、Redis、RocketMQ（搜索 / 定时任务 / 分布式事务按需启动 ES、XXL-Job、Seata）。
 2. 在 MySQL 中创建各服务数据库（见[服务清单](#服务清单)），并导入表结构与初始数据。
 3. 在 Nacos 中准备公共配置：`shared-spring.yaml`、`shared-redis.yaml`、`shared-mybatis.yaml`、`shared-logs.yaml`、`shared-feign.yaml`、`shared-mq.yaml`、`shared-seata.yaml`、`shared-xxljob.yaml`。
-   所有 `ac.*` 配置（数据源库名、鉴权、Swagger、XXL-Job、MQ 等）均位于 Nacos。
+   所有 `ac.*` 配置（数据源库名、鉴权、Swagger、XXL-Job 等）均位于 Nacos；`shared-mq.yaml` 需提供 RocketMQ 的 `rocketmq.name-server` 与 `rocketmq.producer.group`。
 4. 修改各服务 `bootstrap-dev.yml` / `bootstrap-local.yml` 中的 Nacos 地址与注册 IP：
 
    ```yaml
@@ -286,7 +286,7 @@ java -jar comic/target/ac-comic.jar
 java -jar comic/target/ac-comic.jar --spring.profiles.active=local
 ```
 
-> 注意：`dev` 为默认 profile；`local` 仅调整注册 IP，MySQL / Redis / RabbitMQ 等连接信息仍来自 Nacos。
+> 注意：`dev` 为默认 profile；`local` 仅调整注册 IP，MySQL / Redis / RocketMQ 等连接信息仍来自 Nacos。
 
 ### 4. 访问
 
@@ -307,7 +307,7 @@ java -jar comic/target/ac-comic.jar --spring.profiles.active=local
 - **数据库隔离**：每个服务独享一个 `aicomic_*` 库，跨服务只共享 `ac-api` 中的 DTO，不共享实体。
 - **响应包装**：控制器不要手动包装 `R<T>`，由 `WrapperResponseBodyAdvice` 对网关请求统一处理；修改返回类型会同时影响 HTTP 接口和 Feign 消费方。
 - **命名兼容**：表名与大部分类名已按漫剧领域命名，但部分持久化字段仍保留历史列名（`courseId`、`cataId`、`subjectId`、`teacherId`、`lessonId`、`sectionId`）。在完成数据库迁移前，不要单独重命名这些字段；如需调整，必须同步修改 `@TableField`、Mapper XML 的 resultMap / alias 以及表结构。
-- **异步事件**：交换机与路由键统一定义在 `common/constants/MqConstants`；消费失败的消息会重投到 `error.topic`。
+- **异步事件**：Topic 与 Tag 统一定义在 `common/constants/MqConstants`；消费失败的消息由 RocketMQ 重试机制与死信队列兜底。
 - **注释语言**：业务代码与注释使用中文，与现有代码保持一致。
 
 ## 测试

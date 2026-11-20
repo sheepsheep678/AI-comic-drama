@@ -1,65 +1,53 @@
 package com.aicomic.watch.mq;
 
-import com.aicomic.common.constants.MqConstants;
+import com.aicomic.common.autoconfigure.mq.AbstractRocketMqListener;
 import com.aicomic.watch.enums.PointsRecordType;
 import com.aicomic.watch.mq.message.SignInMessage;
 import com.aicomic.watch.service.IPointsRecordService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.amqp.core.ExchangeTypes;
-import org.springframework.amqp.rabbit.annotation.Exchange;
-import org.springframework.amqp.rabbit.annotation.Queue;
-import org.springframework.amqp.rabbit.annotation.QueueBinding;
-import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.apache.rocketmq.common.message.MessageExt;
+import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.springframework.stereotype.Component;
+
+import static com.aicomic.common.constants.MqConstants.ConsumerGroup.WATCH_POINTS_GROUP;
+import static com.aicomic.common.constants.MqConstants.Tag.NOTE_GATHERED_TAG;
+import static com.aicomic.common.constants.MqConstants.Tag.SIGN_IN_TAG;
+import static com.aicomic.common.constants.MqConstants.Tag.WATCH_CLIP_TAG;
+import static com.aicomic.common.constants.MqConstants.Tag.WRITE_NOTE_TAG;
+import static com.aicomic.common.constants.MqConstants.Tag.WRITE_REPLY_TAG;
+import static com.aicomic.common.constants.MqConstants.Topic.WATCH_TOPIC;
 
 @Component
 @RequiredArgsConstructor
-public class WatchPointsListener {
+@RocketMQMessageListener(
+        topic = WATCH_TOPIC,
+        selectorExpression = WRITE_REPLY_TAG + " || " + SIGN_IN_TAG + " || " + WATCH_CLIP_TAG
+                + " || " + WRITE_NOTE_TAG + " || " + NOTE_GATHERED_TAG,
+        consumerGroup = WATCH_POINTS_GROUP
+)
+public class WatchPointsListener extends AbstractRocketMqListener {
 
     private final IPointsRecordService recordService;
 
-    @RabbitListener(bindings = @QueueBinding(
-            value = @Queue(name = "qa.points.queue", durable = "true"),
-            exchange = @Exchange(name = MqConstants.Exchange.WATCH_EXCHANGE, type = ExchangeTypes.TOPIC),
-            key = MqConstants.Key.WRITE_REPLY
-    ))
-    public void listenWriteReplyMessage(Long userId){
-        recordService.addPointsRecord(userId, 5, PointsRecordType.QA);
-    }
-
-    @RabbitListener(bindings = @QueueBinding(
-            value = @Queue(name = "sign.points.queue", durable = "true"),
-            exchange = @Exchange(name = MqConstants.Exchange.WATCH_EXCHANGE, type = ExchangeTypes.TOPIC),
-            key = MqConstants.Key.SIGN_IN
-    ))
-    public void listenSignInMessage(SignInMessage message){
-        recordService.addPointsRecord(message.getUserId(), message.getPoints(), PointsRecordType.SIGN);
-    }
-
-    @RabbitListener(bindings = @QueueBinding(
-            value = @Queue(name = "watch.points.queue", durable = "true"),
-            exchange = @Exchange(name = MqConstants.Exchange.WATCH_EXCHANGE, type = ExchangeTypes.TOPIC),
-            key = MqConstants.Key.WATCH_CLIP
-    ))
-    public void listenLearnSectionMessage(Long userId){
-        recordService.addPointsRecord(userId, 10, PointsRecordType.WATCHING);
-    }
-
-    @RabbitListener(bindings = @QueueBinding(
-            value = @Queue(name = "note.new.points.queue", durable = "true"),
-            exchange = @Exchange(name = MqConstants.Exchange.WATCH_EXCHANGE, type = ExchangeTypes.TOPIC),
-            key = MqConstants.Key.WRITE_NOTE
-    ))
-    public void listenWriteNodeMessage(Long userId){
-        recordService.addPointsRecord(userId, 3, PointsRecordType.NOTE);
-    }
-
-    @RabbitListener(bindings = @QueueBinding(
-            value = @Queue(name = "note.gathered.points.queue", durable = "true"),
-            exchange = @Exchange(name = MqConstants.Exchange.WATCH_EXCHANGE, type = ExchangeTypes.TOPIC),
-            key = MqConstants.Key.NOTE_GATHERED
-    ))
-    public void listenNodeGatheredMessage(Long userId){
-        recordService.addPointsRecord(userId, 2, PointsRecordType.NOTE);
+    @Override
+    protected void handleMessage(MessageExt message) {
+        String tag = message.getTags();
+        if (WRITE_REPLY_TAG.equals(tag)) {
+            // 写回答
+            recordService.addPointsRecord(readMessage(message, Long.class), 5, PointsRecordType.QA);
+        } else if (SIGN_IN_TAG.equals(tag)) {
+            // 签到
+            SignInMessage signIn = readMessage(message, SignInMessage.class);
+            recordService.addPointsRecord(signIn.getUserId(), signIn.getPoints(), PointsRecordType.SIGN);
+        } else if (WATCH_CLIP_TAG.equals(tag)) {
+            // 观看视频
+            recordService.addPointsRecord(readMessage(message, Long.class), 10, PointsRecordType.WATCHING);
+        } else if (WRITE_NOTE_TAG.equals(tag)) {
+            // 写笔记
+            recordService.addPointsRecord(readMessage(message, Long.class), 3, PointsRecordType.NOTE);
+        } else if (NOTE_GATHERED_TAG.equals(tag)) {
+            // 笔记被采集
+            recordService.addPointsRecord(readMessage(message, Long.class), 2, PointsRecordType.NOTE);
+        }
     }
 }

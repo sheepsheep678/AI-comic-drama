@@ -15,7 +15,7 @@ import com.aicomic.api.dto.comic.EpisodeSimpleInfoDTO;
 import com.aicomic.api.dto.comic.ComicFullInfoDTO;
 import com.aicomic.api.dto.comic.ComicSimpleInfoDTO;
 import com.aicomic.api.dto.user.UserDTO;
-import com.aicomic.common.autoconfigure.mq.RabbitMqHelper;
+import com.aicomic.common.autoconfigure.mq.RocketMqHelper;
 import com.aicomic.common.constants.Constant;
 import com.aicomic.common.domain.dto.PageDTO;
 import com.aicomic.common.exceptions.BadRequestException;
@@ -37,9 +37,9 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static com.aicomic.common.constants.MqConstants.Exchange.WATCH_EXCHANGE;
-import static com.aicomic.common.constants.MqConstants.Key.NOTE_GATHERED;
-import static com.aicomic.common.constants.MqConstants.Key.WRITE_NOTE;
+import static com.aicomic.common.constants.MqConstants.Topic.WATCH_TOPIC;
+import static com.aicomic.common.constants.MqConstants.Tag.NOTE_GATHERED_TAG;
+import static com.aicomic.common.constants.MqConstants.Tag.WRITE_NOTE_TAG;
 
 /**
  * <p>
@@ -55,7 +55,7 @@ public class NoteServiceImpl extends ServiceImpl<NoteMapper, Note> implements IN
     private final SearchClient searchClient;
     private final EpisodeClient catalogueClient;
     private final UserClient userClient;
-    private final RabbitMqHelper mqHelper;
+    private final RocketMqHelper mqHelper;
     private final CategoryCache categoryCache;
 
     @Override
@@ -70,7 +70,7 @@ public class NoteServiceImpl extends ServiceImpl<NoteMapper, Note> implements IN
         // 3.保存
         save(note);
         // 4.发送mq消息
-        mqHelper.send(WATCH_EXCHANGE, WRITE_NOTE, userId);
+        mqHelper.send(WATCH_TOPIC, WRITE_NOTE_TAG, userId);
     }
 
     @Override
@@ -91,7 +91,7 @@ public class NoteServiceImpl extends ServiceImpl<NoteMapper, Note> implements IN
         note.setId(null);
         save(note);
         // 4.发送mq消息
-        mqHelper.send(WATCH_EXCHANGE, NOTE_GATHERED, userId);
+        mqHelper.send(WATCH_TOPIC, NOTE_GATHERED_TAG, userId);
     }
 
     @Override

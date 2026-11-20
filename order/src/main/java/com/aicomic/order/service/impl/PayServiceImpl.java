@@ -1,6 +1,6 @@
 package com.aicomic.order.service.impl;
 
-import com.aicomic.common.autoconfigure.mq.RabbitMqHelper;
+import com.aicomic.common.autoconfigure.mq.RocketMqHelper;
 import com.aicomic.common.exceptions.BadRequestException;
 import com.aicomic.common.exceptions.BizIllegalException;
 import com.aicomic.common.utils.AssertUtils;
@@ -32,8 +32,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static com.aicomic.common.constants.MqConstants.Exchange.ORDER_DELAY_EXCHANGE;
-import static com.aicomic.common.constants.MqConstants.Key.ORDER_DELAY_KEY;
+import static com.aicomic.common.constants.MqConstants.Topic.ORDER_DELAY_TOPIC;
+import static com.aicomic.common.constants.MqConstants.Tag.ORDER_DELAY_TAG;
 import static com.aicomic.order.constants.OrderErrorInfo.ORDER_NOT_EXISTS;
 
 @Slf4j
@@ -45,7 +45,7 @@ public class PayServiceImpl implements IPayService {
     private final IOrderService orderService;
     private final IOrderDetailService detailService;
     private final OrderProperties orderProperties;
-    private final RabbitMqHelper mqHelper;
+    private final RocketMqHelper mqHelper;
 
     @Override
     public List<PayChannelVO> queryPayChannels() {
@@ -98,8 +98,8 @@ public class PayServiceImpl implements IPayService {
 
     private void sendDelayQueryMessage(OrderDelayQueryDTO message) {
         mqHelper.sendDelayMessage(
-                ORDER_DELAY_EXCHANGE,
-                ORDER_DELAY_KEY,
+                ORDER_DELAY_TOPIC,
+                ORDER_DELAY_TAG,
                 message, Duration.ofMillis(message.removeFirst()));
     }
 

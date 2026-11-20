@@ -1,30 +1,31 @@
 package com.aicomic.unlock.handler;
 
+import com.aicomic.common.autoconfigure.mq.AbstractRocketMqListener;
 import com.aicomic.unlock.domain.dto.UserCouponDTO;
 import com.aicomic.unlock.service.IUserCouponService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.amqp.core.ExchangeTypes;
-import org.springframework.amqp.rabbit.annotation.Exchange;
-import org.springframework.amqp.rabbit.annotation.Queue;
-import org.springframework.amqp.rabbit.annotation.QueueBinding;
-import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.apache.rocketmq.common.message.MessageExt;
+import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.springframework.stereotype.Component;
 
-import static com.aicomic.common.constants.MqConstants.Exchange.UNLOCK_EXCHANGE;
-import static com.aicomic.common.constants.MqConstants.Key.COUPON_RECEIVE;
+import static com.aicomic.common.constants.MqConstants.ConsumerGroup.COUPON_RECEIVE_GROUP;
+import static com.aicomic.common.constants.MqConstants.Tag.COUPON_RECEIVE_TAG;
+import static com.aicomic.common.constants.MqConstants.Topic.UNLOCK_TOPIC;
 
 @RequiredArgsConstructor
 @Component
-public class UnlockMqHandler {
+@RocketMQMessageListener(
+        topic = UNLOCK_TOPIC,
+        selectorExpression = COUPON_RECEIVE_TAG,
+        consumerGroup = COUPON_RECEIVE_GROUP
+)
+public class UnlockMqHandler extends AbstractRocketMqListener {
 
     private final IUserCouponService userCouponService;
 
-    @RabbitListener(bindings = @QueueBinding(
-            value = @Queue(name = "coupon.receive.queue", durable = "true"),
-            exchange = @Exchange(name = UNLOCK_EXCHANGE, type = ExchangeTypes.TOPIC),
-            key = COUPON_RECEIVE
-    ))
-    public void listenCouponReceiveMessage(UserCouponDTO uc){
+    @Override
+    protected void handleMessage(MessageExt message) {
+        UserCouponDTO uc = readMessage(message, UserCouponDTO.class);
         userCouponService.checkAndCreateUserCoupon(uc);
     }
 }

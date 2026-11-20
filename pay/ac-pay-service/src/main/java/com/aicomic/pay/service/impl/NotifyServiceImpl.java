@@ -3,7 +3,7 @@ package com.aicomic.pay.service.impl;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONObject;
 import com.alipay.easysdk.factory.Factory;
-import com.aicomic.common.autoconfigure.mq.RabbitMqHelper;
+import com.aicomic.common.autoconfigure.mq.RocketMqHelper;
 import com.aicomic.common.autoconfigure.redisson.annotations.Lock;
 import com.aicomic.common.constants.MqConstants;
 import com.aicomic.common.exceptions.BadRequestException;
@@ -48,7 +48,7 @@ public class NotifyServiceImpl implements INotifyService {
     private final CertificatesManager certificatesManager;
     private final WxPayProperties properties;
     private final IPayOrderService payOrderService;
-    private final RabbitMqHelper rabbitMqHelper;
+    private final RocketMqHelper rocketMqHelper;
     private final IRefundOrderService refundOrderService;
 
     @Override
@@ -78,9 +78,9 @@ public class NotifyServiceImpl implements INotifyService {
         if (payOrder == null) return;
 
         // 5.通知业务服务
-        rabbitMqHelper.send(
-                MqConstants.Exchange.PAY_EXCHANGE,
-                MqConstants.Key.PAY_SUCCESS,
+        rocketMqHelper.send(
+                MqConstants.Topic.PAY_TOPIC,
+                MqConstants.Tag.PAY_SUCCESS_TAG,
                 PayResultDTO.builder()
                         .payChannel(payOrder.getPayChannelCode())
                         .payOrderNo(payOrder.getPayOrderNo())
@@ -120,9 +120,9 @@ public class NotifyServiceImpl implements INotifyService {
         if (refundOrder == null) return;
 
         // 4.发送MQ通知业务端
-        rabbitMqHelper.send(
-                MqConstants.Exchange.PAY_EXCHANGE,
-                MqConstants.Key.REFUND_CHANGE,
+        rocketMqHelper.send(
+                MqConstants.Topic.PAY_TOPIC,
+                MqConstants.Tag.REFUND_CHANGE_TAG,
                 RefundResultDTO.builder()
                         .status(status == RefundStatus.SUCCESS ? RefundResultDTO.SUCCESS : RefundResultDTO.FAILED)
                         .bizPayOrderId(refundOrder.getBizOrderNo())
@@ -163,9 +163,9 @@ public class NotifyServiceImpl implements INotifyService {
         if (payOrder == null) return;
 
         // 5.通知业务服务
-        rabbitMqHelper.send(
-                MqConstants.Exchange.PAY_EXCHANGE,
-                MqConstants.Key.PAY_SUCCESS,
+        rocketMqHelper.send(
+                MqConstants.Topic.PAY_TOPIC,
+                MqConstants.Tag.PAY_SUCCESS_TAG,
                 PayResultDTO.builder()
                         .payOrderNo(payOrder.getPayOrderNo())
                         .payChannel(payOrder.getPayChannelCode())
