@@ -36,7 +36,7 @@
 平台围绕「漫剧」这一内容形态展开：
 
 - **内容侧**：创作者上传漫剧作品与剧集，平台按分类、标签组织内容；
-- **消费侧**：观众浏览、搜索、播放剧集，记录观看进度，参与点赞、评论、笔记与互动问答；
+- **消费侧**：观众浏览、搜索、播放剧集，记录观看进度，参与点赞、一级/二级评论、笔记与互动答题；
 - **商业化**：支持剧集付费解锁、限时活动、优惠券、兑换码，以及支付宝/微信支付与退款；
 - **运营侧**：后台提供用户与权限管理、内容审核、消息推送和数据看板。
 
@@ -52,7 +52,7 @@
 | 内容管理 | 漫剧作品、剧集、分类、标签、草稿发布（Seata 全局事务） |
 | 搜索推荐 | 基于 Elasticsearch 的内容检索、兴趣标签、推荐流 |
 | 媒体处理 | 视频 / 图片 / 素材上传，腾讯云 COS / VOD 存储与播放签名 |
-| 播放互动 | 观看进度、观看记录、笔记、点赞、评论、积分、签到、互动问答 |
+| 播放互动 | 观看进度、观看记录、笔记、点赞、一级/二级评论与热门回复、积分、签到 |
 | 交易支付 | 购物车、订单、支付回调、退款申请，支付宝 / 微信双通道 |
 | 解锁营销 | 限时解锁、优惠券领取与核销、兑换码，Redis + Lua 保证原子性 |
 | 消息通知 | 短信模板与发送、站内信、公告任务，多短信厂商适配 |
@@ -102,13 +102,13 @@ flowchart LR
         order[order-service<br/>:8088]
         quiz[quiz-service<br/>:8089]
         watch[watch-service<br/>:8090]
-        comment[comment-service<br/>:8091]
+        like[like-service<br/>:8094]
         unlock[unlock-service<br/>:8092]
         data[data-service<br/>:8093]
     end
 
     gateway --> auth & user & search & media & message
-    gateway --> comic & pay & order & quiz & watch & comment & unlock & data
+    gateway --> comic & pay & order & quiz & watch & like & unlock & data
 
     subgraph 基础设施
         nacos[(Nacos)]
@@ -154,10 +154,10 @@ controller  →  service/I*Service + service/impl  →  mapper  →  domain/{po,
 | `comic` | comic-service | 8086 | `/mc` | aicomic_comic | 漫剧、剧集、分类、标签 |
 | `pay/ac-pay-service` | pay-service | 8087 | `/ps` | aicomic_pay | 支付宝 / 微信支付、退款、支付回调 |
 | `order` | order-service | 8088 | `/os` | aicomic_order | 购物车、订单、退款申请 |
-| `quiz` | quiz-service | 8089 | `/qz` | aicomic_quiz | 互动问答题目 |
-| `watch` | watch-service | 8090 | `/ws` | aicomic_watch | 观看进度、笔记、评论、积分、签到 |
-| `comment` | comment-service | 8091 | `/cm` | aicomic_comment | 点赞记录 |
-| `unlock` | unlock-service | 8092 | `/ul` | aicomic_unlock | 限时解锁、优惠券、兑换码 |
+| `question` | quiz-service | 8089 | `/qz` | aicomic_quiz | 互动答题题目 |
+| `watch` | watch-service | 8090 | `/ws` | aicomic_watch | 观看进度、笔记、积分、签到、一级 / 二级评论与热门回复 |
+| `liked` | like-service | 8094 | `/lk` | aicomic_like | 点赞记录、点赞数统计、点赞变更消息 |
+| `voucher` | unlock-service | 8092 | `/ul` | aicomic_unlock | 限时解锁、优惠券、兑换码 |
 | `data` | data-service | 8093 | `/ds` | aicomic_data | 数据看板、榜单统计 |
 
 网关根据路径第一段路由到对应服务，并统一 `StripPrefix=1`。例如：
@@ -192,10 +192,10 @@ GET http://localhost:10010/us/users   →  user-service /users
 │   ├── ac-pay-api/
 │   └── ac-pay-domain/
 ├── order/                      # 订单服务
-├── quiz/                       # 互动问答服务
-├── watch/                      # 观看互动服务
-├── comment/                    # 点赞服务
-├── unlock/                     # 解锁营销服务
+├── question/                   # 互动答题服务（quiz-service）
+├── watch/                      # 观看互动服务（watch-service：观看、笔记、积分、评论）
+├── voucher/                    # 解锁营销服务（unlock-service）
+├── liked/                      # 点赞服务（like-service）
 └── data/                       # 数据统计服务
 ```
 
@@ -316,8 +316,10 @@ java -jar comic/target/ac-comic.jar --spring.profiles.active=local
 
 可作为纯单元测试参考的示例：
 
-- `unlock/src/test/java/com/aicomic/unlock/utils/CodeUtilTest.java`
+- `voucher/src/test/java/com/aicomic/unlock/utils/CodeUtilTest.java`
 - `watch/src/test/java/com/aicomic/watch/utils/DelayTaskTest.java`
+- `watch/src/test/java/com/aicomic/watch/utils/TopReplyIdsCodecTest.java`
+- `watch/src/test/java/com/aicomic/watch/utils/TopReplySelectorTest.java`
 
 ```bash
 # 运行全部测试

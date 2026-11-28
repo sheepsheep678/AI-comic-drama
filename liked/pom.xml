@@ -82,7 +82,7 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <mainClass>com.aicomic.comment.CommentApplication</mainClass>
+                    <mainClass>com.aicomic.liked.LikeApplication</mainClass>
                 </configuration>
             </plugin>
         </plugins>

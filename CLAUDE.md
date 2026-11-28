@@ -36,10 +36,10 @@ Runtime config comes from Nacos at `192.168.150.101:8848` (namespace `f923fb34-c
 | `comic` | comic-service | 8086 | aicomic_comic | `/mc` | comics, episodes, categories, tags |
 | `pay/ac-pay-service` | pay-service | 8087 | aicomic_pay | `/ps` | Alipay/WeChat pay/refund, payment notify |
 | `order` | order-service | 8088 | aicomic_order | `/os` | cart, orders, refund applications |
-| `quiz` | quiz-service | 8089 | aicomic_quiz | `/qz` | interactive questions |
-| `watch` | watch-service | 8090 | aicomic_watch | `/ws` | watch progress, notes, comments, points, check-in |
-| `comment` | comment-service | 8091 | aicomic_comment | `/cm` | like records |
-| `unlock` | unlock-service | 8092 | aicomic_unlock | `/ul` | limited-time unlock, coupons, exchange codes |
+| `question` | quiz-service | 8089 | aicomic_quiz | `/qz` | interactive quiz questions |
+| `watch` | watch-service | 8090 | aicomic_watch | `/ws` | watch progress, notes, points, check-in, first/second-level comments |
+| `liked` | like-service | 8094 | aicomic_like | `/lk` | like records, like counting, like-change MQ |
+| `voucher` | unlock-service | 8092 | aicomic_unlock | `/ul` | limited-time unlock, coupons, exchange codes |
 | `data` | data-service | 8093 | aicomic_data | `/ds` | dashboard statistics |
 
 Gateway routes (`gateway/src/main/resources/bootstrap.yml`) map a first path segment to a load-balanced service with `StripPrefix=1`. The legacy `/ts` alias route was removed; order traffic uses `/os`.
@@ -65,8 +65,8 @@ Gateway routes (`gateway/src/main/resources/bootstrap.yml`) map a first path seg
 ## Async and background processing
 
 - RocketMQ: topic/tag constants live in `common/constants/MqConstants` (`Topic`, `Tag`, `ConsumerGroup`). RabbitMQ exchanges map to RocketMQ topics (`comic_topic`, `order_topic`, `watch_topic`, `pay_topic`, `unlock_topic`, `sms_topic`, `like_record_topic`, `order_delay_topic`) and routing keys map to tags. Listeners extend `AbstractRocketMqListener`, which relays the request ID into consumer MDC and deserializes the JSON body with the shared `ObjectMapper`. Failed messages use RocketMQ's retry and dead-letter queues.
-- XXL-Job: `@XxlJob` handlers in comic, watch, message, pay, unlock, and order; admin/executor config is `ac.xxl-job` in Nacos.
-- Redis/Redisson: `@Lock` for distributed locks; unlock uses Lua scripts (`unlock/src/main/resources/lua/*.lua`) for atomic coupon receipt.
+- XXL-Job: `@XxlJob` handlers in comic, watch, message, pay, unlock, and order; admin/executor config is `ac.xxl-job` in Nacos. The watch-service jobs `hotReplyRefreshJob` / `hotReplyBackfillJob` maintain the top-4 liked comment replies.
+- Redis/Redisson: `@Lock` for distributed locks; unlock uses Lua scripts (`voucher/src/main/resources/lua/*.lua`) for atomic coupon receipt, and watch-service uses `watch/src/main/resources/lua/claim_hot_dirty.lua` to claim hot-reply recompute work.
 - Delayed work: `RocketMqHelper.sendDelayMessage` for order timeout/refund flows, implemented with RocketMQ delay levels (rounded up to the nearest level; exact timestamps need a 5.x broker); watch uses an in-process `DelayQueue` plus Redis cache (`WatchRecordDelayTaskHandler`) to batch playback-progress writes.
 - Search indexing is event-driven: `search` listens to comic/order MQ events and writes Elasticsearch through `RestHighLevelClient` (`repository/impl`).
 - Seata `@GlobalTransactional` is used only in comic draft publishing (`ComicDraftServiceImpl`).
@@ -77,6 +77,7 @@ Gateway routes (`gateway/src/main/resources/bootstrap.yml`) map a first path seg
 - Per-service layering: `controller` → `service/I*Service` + `service/impl` → `mapper` (MyBatis-Plus `BaseMapper`) → `domain/{po,dto,vo,query}`. SQL that cannot be expressed with wrappers lives in `src/main/resources/mapper/*.xml`; `@MapperScan("com.aicomic.<service>.mapper")` is on each application class.
 - Each service owns its database (one `aicomic_*` schema per service); no entities are shared across services, only `ac-api` DTOs. `ac.jdbc.database` is consumed by the Nacos `shared-mybatis.yaml`.
 - Persistence compatibility: table names are comic-domain (`comic`, `comic_episode`, `watch_episode`, `unlock_activity`, ...), but several Java fields/columns keep legacy names. Do not rename `courseId`/`cataId`/`subjectId`/`teacherId`/`lessonId`/`sectionId` without also updating `@TableField`, mapper XML result maps/aliases, and the database schema.
+- Comments are a strict two-level model in **watch-service**: `comment` (first level, keeps `reply_times` for the child count and `top_reply_ids` for the top-4 liked replies) → `comment_reply` (second level, flat; @-replies use `target_reply_id`/`target_user_id`). DDL is in `watch/src/main/resources/db/comment.sql` (run against `aicomic_watch`). Like biz types are `COMMENT` (first level) and `COMMENT_REPLY` (second level); the separate `like-service` records likes and publishes `*_times_changed` RocketMQ messages, which watch-service consumes to update comment like counts.
 - The `data` module entities do not use `@TableName`; confirm actual table names before migrating this module.
 - Knife4j docs use `ac.swagger.*` in each `bootstrap.yml`; API docs are exposed only where `ac.swagger.enable=true`.
 - Sensitive config in-repo: `pay/ac-pay-service/src/main/resources/bootstrap.yml` contains Alipay/WeChat credentials and a temporary `notifyHost` tunnel; `media` and `message` hold third-party settings (some via environment variables). Treat these values as secrets.
@@ -84,7 +85,7 @@ Gateway routes (`gateway/src/main/resources/bootstrap.yml`) map a first path seg
 
 ## Tests
 
-Ten test classes live under `<module>/src/test/java`, mostly ad-hoc `@SpringBootTest` or third-party SDK tests (Alipay, Elasticsearch) that require the external Nacos/MySQL/Redis/ES environment or real credentials. They are not a reliable offline signal. Genuine unit-style examples: `unlock/src/test/java/com/aicomic/unlock/utils/CodeUtilTest.java` and `watch/src/test/java/com/aicomic/watch/utils/DelayTaskTest.java`. `mvn -DskipTests test-compile` is the quick check that test sources still compile.
+Ten test classes live under `<module>/src/test/java`, mostly ad-hoc `@SpringBootTest` or third-party SDK tests (Alipay, Elasticsearch) that require the external Nacos/MySQL/Redis/ES environment or real credentials. They are not a reliable offline signal. Genuine unit-style examples: `watch/src/test/java/com/aicomic/watch/utils/TopReplyIdsCodecTest.java`, `watch/src/test/java/com/aicomic/watch/utils/TopReplySelectorTest.java`, and `watch/src/test/java/com/aicomic/watch/utils/DelayTaskTest.java`. `mvn -DskipTests test-compile` is the quick check that test sources still compile.
 
 ## Runtime configuration checklist
 

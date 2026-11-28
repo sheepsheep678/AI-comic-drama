@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicomic.watch.mapper.CommentReplyMapper">
+
+    <!--
+        查询一级评论下参与点赞排名的二级评论候选。
+        每个一级评论按点赞量倒序最多取 limitPerComment 条（业务传 4）。
+        依赖 MySQL 8.0 的窗口函数。
+    -->
+    <select id="selectHotCandidates" resultType="com.aicomic.watch.domain.dto.HotReplyCandidate">
+        SELECT t.replyId,
+               t.commentId,
+               t.userId,
+               t.content,
+               t.anonymity,
+               t.likedTimes,
+               t.createTime,
+               t.hidden
+        FROM (
+            SELECT r.id AS replyId,
+                   r.comment_id AS commentId,
+                   r.user_id AS userId,
+                   r.content,
+                   r.anonymity,
+                   COALESCE(r.liked_times, 0) AS likedTimes,
+                   r.create_time AS createTime,
+                   r.hidden,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY r.comment_id
+                       ORDER BY COALESCE(r.liked_times, 0) DESC,
+                                r.create_time DESC,
+                                r.id DESC
+                   ) AS rn
+            FROM comment_reply r
+            WHERE r.comment_id IN
+            <foreach collection="commentIds" item="commentId" open="(" separator="," close=")">
+                #{commentId}
+            </foreach>
+              AND (r.hidden = 0 OR r.hidden IS NULL)
+        ) t
+        WHERE t.rn &lt;= #{limitPerComment}
+        ORDER BY t.commentId, t.likedTimes DESC, t.createTime DESC, t.replyId DESC
+    </select>
+</mapper>

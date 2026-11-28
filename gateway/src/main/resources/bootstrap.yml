@@ -66,10 +66,10 @@ spring:
           uri: lb://quiz-service
           predicates:
             - Path=/qz/**
-        - id: cm
-          uri: lb://comment-service
+        - id: lk
+          uri: lb://like-service
           predicates:
-            - Path=/cm/**
+            - Path=/lk/**
         - id: ul
           uri: lb://unlock-service
           predicates:

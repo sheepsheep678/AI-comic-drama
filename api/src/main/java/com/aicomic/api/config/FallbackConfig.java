@@ -2,7 +2,7 @@ package com.aicomic.api.config;
 
 import com.aicomic.api.client.watch.fallback.WatchClientFallback;
 import com.aicomic.api.client.unlock.fallback.UnlockClientFallback;
-import com.aicomic.api.client.comment.fallback.CommentClientFallback;
+import com.aicomic.api.client.liked.fallback.LikeClientFallback;
 import com.aicomic.api.client.order.fallback.OrderClientFallback;
 import com.aicomic.api.client.user.fallback.UserClientFallback;
 import org.springframework.context.annotation.Bean;
@@ -26,8 +26,8 @@ public class FallbackConfig {
     }
 
     @Bean
-    public CommentClientFallback commentClientFallback(){
-        return new CommentClientFallback();
+    public LikeClientFallback likeClientFallback(){
+        return new LikeClientFallback();
     }
 
     @Bean

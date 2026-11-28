@@ -48,7 +48,8 @@ public final class TopReplyIdsCodec {
                 // 忽略非法片段
             }
         }
-        return new ArrayList<>(ids);
+        // 非空但没有任何合法 id，视为脏数据，返回 null 让读路径回源修复
+        return ids.isEmpty() ? null : new ArrayList<>(ids);
     }
 
     /**

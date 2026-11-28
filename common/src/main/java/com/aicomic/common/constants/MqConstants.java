@@ -55,7 +55,7 @@ public interface MqConstants {
         String ORDER_REFUND_TAG = "order_refund";
 
         /*积分相关Tag*/
-        /* 写回答 */
+        /* 写评论 */
         String WRITE_REPLY_TAG = "reply_new";
         /* 签到 */
         String SIGN_IN_TAG = "sign_in";
@@ -68,8 +68,10 @@ public interface MqConstants {
 
         /*点赞的Tag*/
         String LIKE_TIMES_TAG_TEMPLATE = "{}_times_changed";
-        /*问答*/
-        String QA_LIKE_TIMES_TAG = "QA_times_changed";
+        /*一级评论*/
+        String COMMENT_LIKE_TIMES_TAG = "COMMENT_times_changed";
+        /*二级评论*/
+        String COMMENT_REPLY_LIKE_TIMES_TAG = "COMMENT_REPLY_times_changed";
         /*笔记*/
         String NOTE_LIKE_TIMES_TAG = "NOTE_times_changed";
 
@@ -92,8 +94,8 @@ public interface MqConstants {
     interface ConsumerGroup {
         /*观看服务：积分变更*/
         String WATCH_POINTS_GROUP = "watch_points_consumer_group";
-        /*观看服务：点赞数变更*/
-        String LIKE_TIMES_CHANGE_GROUP = "like_times_change_consumer_group";
+        /*评论服务：评论点赞数变更*/
+        String COMMENT_LIKE_TIMES_CHANGE_GROUP = "comment_like_times_change_consumer_group";
         /*观看服务：订单支付/退款*/
         String WATCH_ORDER_CHANGE_GROUP = "watch_order_change_consumer_group";
 

@@ -11,7 +11,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * 按点赞量选取回答，纯逻辑，便于单元测试
+ * 按点赞量选取二级评论，纯逻辑，便于单元测试
  */
 public final class TopReplySelector {
 
@@ -19,7 +19,7 @@ public final class TopReplySelector {
     }
 
     /**
-     * 按点赞量倒序取前 n 条；同分按回复数、回答时间、id 倒序决胜，隐藏回答不参与
+     * 按点赞量倒序取前 n 条；同分按评论时间、id 倒序决胜，隐藏评论不参与
      */
     public static List<HotReplyCandidate> topNByLikes(Collection<HotReplyCandidate> candidates, int n) {
         if (candidates == null || candidates.isEmpty() || n <= 0) {
@@ -37,9 +37,6 @@ public final class TopReplySelector {
         return Comparator
                 .comparingInt((HotReplyCandidate c) -> normalize(c.getLikedTimes()))
                 .reversed()
-                .thenComparing(Comparator
-                        .comparingInt((HotReplyCandidate c) -> normalize(c.getReplyTimes()))
-                        .reversed())
                 .thenComparing(HotReplyCandidate::getCreateTime,
                         Comparator.nullsLast(Comparator.<LocalDateTime>reverseOrder()))
                 .thenComparing(HotReplyCandidate::getReplyId,
